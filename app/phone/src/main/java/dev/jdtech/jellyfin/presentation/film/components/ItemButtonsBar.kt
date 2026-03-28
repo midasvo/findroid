@@ -52,6 +52,8 @@ fun ItemButtonsBar(
     modifier: Modifier = Modifier,
     downloaderState: DownloaderState? = null,
     canPlay: Boolean = true,
+    canDownload: Boolean = item.canDownload,
+    isDownloaded: Boolean = item.isDownloaded(),
 ) {
     val context = LocalContext.current
     val windowSizeClass = currentWindowAdaptiveInfo().windowSizeClass
@@ -152,14 +154,14 @@ fun ItemButtonsBar(
                     }
                 }
                 if (downloaderState != null && !downloaderState.isDownloading) {
-                    if (item.isDownloaded()) {
+                    if (isDownloaded) {
                         FilledTonalIconButton(onClick = { deleteDownloadDialogOpen = true }) {
                             Icon(
                                 painter = painterResource(CoreR.drawable.ic_trash),
                                 contentDescription = null,
                             )
                         }
-                    } else if (item.canDownload) {
+                    } else if (canDownload) {
                         FilledTonalIconButton(onClick = onDownloadClick) {
                             Icon(
                                 painter = painterResource(CoreR.drawable.ic_download),
@@ -181,22 +183,26 @@ fun ItemButtonsBar(
                     }
                 }
             }
-            if (downloaderState != null && !downloaderState.isDownloading && item.isDownloaded()) {
-                val localSource = item.sources.firstOrNull {
-                    it.type == FindroidSourceType.LOCAL && !it.path.endsWith(".download")
-                }
-                if (localSource != null) {
-                    val label = remember(localSource.path) {
-                        val dir = storageLocations.firstOrNull { dir ->
-                            dir != null && localSource.path.startsWith(dir.path)
-                        }
-                        val isExternal = dir != null && Environment.isExternalStorageRemovable(dir)
-                        context.getString(
-                            CoreR.string.downloaded_to,
-                            if (isExternal) context.getString(CoreR.string.external)
-                            else context.getString(CoreR.string.internal),
-                        )
+            if (downloaderState != null && !downloaderState.isDownloading && isDownloaded) {
+                val localSource =
+                    item.sources.firstOrNull {
+                        it.type == FindroidSourceType.LOCAL && !it.path.endsWith(".download")
                     }
+                if (localSource != null) {
+                    val label =
+                        remember(localSource.path) {
+                            val dir =
+                                storageLocations.firstOrNull { dir ->
+                                    dir != null && localSource.path.startsWith(dir.path)
+                                }
+                            val isExternal =
+                                dir != null && Environment.isExternalStorageRemovable(dir)
+                            context.getString(
+                                CoreR.string.downloaded_to,
+                                if (isExternal) context.getString(CoreR.string.external)
+                                else context.getString(CoreR.string.internal),
+                            )
+                        }
                     Text(
                         text = label,
                         style = MaterialTheme.typography.labelSmall,
