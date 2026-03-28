@@ -6,7 +6,7 @@ A maintained fork of [Findroid](https://github.com/jarnedemeulemeester/findroid)
 
 ## Why this fork?
 
-The original Findroid is an excellent Jellyfin client, but the maintainer is focused on a full Jetpack Compose rewrite. In the meantime, many community PRs with useful features aren't being merged. Findroid CE merges select community contributions and keeps dependencies up to date so you can keep using a current, feature-rich Findroid today.
+The original Findroid is an excellent Jellyfin client, but many community PRs with useful features aren't being merged. Findroid CE merges select community contributions and keeps dependencies up to date.
 
 ## Installing
 
@@ -53,7 +53,7 @@ _(List what PRs you've merged here — update this as you go)_
 
 ## Upstream sync
 
-This fork is periodically synced with upstream. The goal is to stay compatible until the Compose rewrite lands, at which point this fork may be archived.
+This fork is periodically synced with upstream.
 
 ## License
 
