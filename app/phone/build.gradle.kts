@@ -9,18 +9,18 @@ plugins {
     alias(libs.plugins.aboutlibraries.android)
 }
 
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val envKeystoreFile: String? = System.getenv("KEYSTORE_FILE")
+val keystoreProps: java.util.Properties? = if (envKeystoreFile == null && keystorePropertiesFile.exists()) {
+    java.util.Properties().also { props ->
+        keystorePropertiesFile.inputStream().use { props.load(it) }
+    }
+} else null
+
 android {
     namespace = "dev.jdtech.jellyfin"
     compileSdk = Versions.COMPILE_SDK
     buildToolsVersion = Versions.BUILD_TOOLS
-
-    val keystorePropertiesFile = rootProject.file("keystore.properties")
-    val envKeystoreFile = System.getenv("KEYSTORE_FILE")
-    val keystoreProps = if (envKeystoreFile == null && keystorePropertiesFile.exists()) {
-        java.util.Properties().also { props ->
-            keystorePropertiesFile.inputStream().use { props.load(it) }
-        }
-    } else null
 
     if (envKeystoreFile != null || keystoreProps != null) {
         signingConfigs {
