@@ -14,8 +14,13 @@ android {
 
     val keystorePropertiesFile = rootProject.file("keystore.properties")
     val envKeystoreFile = System.getenv("KEYSTORE_FILE")
+    val keystoreProps = if (envKeystoreFile == null && keystorePropertiesFile.exists()) {
+        java.util.Properties().also { props ->
+            keystorePropertiesFile.inputStream().use { props.load(it) }
+        }
+    } else null
 
-    if (envKeystoreFile != null || keystorePropertiesFile.exists()) {
+    if (envKeystoreFile != null || keystoreProps != null) {
         signingConfigs {
             create("release") {
                 if (envKeystoreFile != null) {
@@ -24,13 +29,10 @@ android {
                     keyAlias = System.getenv("KEY_ALIAS")
                     keyPassword = System.getenv("KEY_PASSWORD")
                 } else {
-                    val props = java.util.Properties().apply {
-                        keystorePropertiesFile.inputStream().use(::load)
-                    }
-                    storeFile = rootProject.file(props["storeFile"] as String)
-                    storePassword = props["storePassword"] as String
-                    keyAlias = props["keyAlias"] as String
-                    keyPassword = props["keyPassword"] as String
+                    storeFile = rootProject.file(keystoreProps!!.getProperty("storeFile"))
+                    storePassword = keystoreProps.getProperty("storePassword")
+                    keyAlias = keystoreProps.getProperty("keyAlias")
+                    keyPassword = keystoreProps.getProperty("keyPassword")
                 }
             }
         }
