@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose.compiler)
@@ -7,15 +9,18 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val envKeystoreFile: String? = System.getenv("KEYSTORE_FILE")
+val keystoreProps: Properties? = if (envKeystoreFile == null && keystorePropertiesFile.exists()) {
+    Properties().apply { load(keystorePropertiesFile.inputStream()) }
+} else null
+
 android {
     namespace = "dev.jdtech.jellyfin"
     compileSdk = Versions.COMPILE_SDK
     buildToolsVersion = Versions.BUILD_TOOLS
 
-    val keystorePropertiesFile = rootProject.file("keystore.properties")
-    val envKeystoreFile = System.getenv("KEYSTORE_FILE")
-
-    if (envKeystoreFile != null || keystorePropertiesFile.exists()) {
+    if (envKeystoreFile != null || keystoreProps != null) {
         signingConfigs {
             create("release") {
                 if (envKeystoreFile != null) {
@@ -24,13 +29,10 @@ android {
                     keyAlias = System.getenv("KEY_ALIAS")
                     keyPassword = System.getenv("KEY_PASSWORD")
                 } else {
-                    val props = java.util.Properties().apply {
-                        keystorePropertiesFile.inputStream().use(::load)
-                    }
-                    storeFile = rootProject.file(props["storeFile"] as String)
-                    storePassword = props["storePassword"] as String
-                    keyAlias = props["keyAlias"] as String
-                    keyPassword = props["keyPassword"] as String
+                    storeFile = rootProject.file(keystoreProps!!.getProperty("storeFile"))
+                    storePassword = keystoreProps.getProperty("storePassword")
+                    keyAlias = keystoreProps.getProperty("keyAlias")
+                    keyPassword = keystoreProps.getProperty("keyPassword")
                 }
             }
         }
