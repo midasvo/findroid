@@ -15,6 +15,14 @@
         "/org.jetbrains.kotlin.*/",
         "/com.google.devtools.ksp/"
       ]
+    },
+    {
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true
+    },
+    {
+      "matchUpdateTypes": ["major"],
+      "automerge": false
     }
   ]
 }
