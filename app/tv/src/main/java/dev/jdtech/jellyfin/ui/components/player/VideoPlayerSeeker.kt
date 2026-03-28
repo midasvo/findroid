@@ -100,7 +100,7 @@ fun VideoPlayerSeeker(
 private fun VideoPlayerSeekerPreview() {
     FindroidTheme {
         VideoPlayerSeeker(
-            focusRequester = FocusRequester(),
+            focusRequester = remember { FocusRequester() },
             state = rememberVideoPlayerState(),
             isPlaying = false,
             onPlayPauseToggle = {},
