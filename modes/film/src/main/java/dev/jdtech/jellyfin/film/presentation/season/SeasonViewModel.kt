@@ -24,6 +24,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.jellyfin.sdk.model.api.ItemFields
 import timber.log.Timber
 
@@ -44,9 +46,10 @@ constructor(
     lateinit var seasonId: UUID
 
     private val handler = Handler(Looper.getMainLooper())
-    private var isPolling = false
+    @Volatile private var isPolling = false
 
     // Download queue: episodes waiting to be started
+    private val queueMutex = Mutex()
     private val downloadQueue = ArrayDeque<FindroidEpisode>()
     private var activeDownloadCount = 0
 
@@ -97,24 +100,27 @@ constructor(
             // Start first batch, queue the rest
             val firstBatch = toDownload.take(maxConcurrent)
             val rest = toDownload.drop(maxConcurrent)
-            downloadQueue.clear()
-            downloadQueue.addAll(rest)
+            queueMutex.withLock {
+                downloadQueue.clear()
+                downloadQueue.addAll(rest)
+                activeDownloadCount = 0
+            }
 
             var started = 0
             var failed = 0
-            activeDownloadCount = 0
             for (episode in firstBatch) {
                 val result = startEpisodeDownload(episode)
                 if (result) {
                     started++
-                    activeDownloadCount++
+                    queueMutex.withLock { activeDownloadCount++ }
                 } else {
                     failed++
                 }
             }
+            val queueSize = queueMutex.withLock { downloadQueue.size }
             eventsChannel.send(
                 SeasonEvent.DownloadResult(
-                    started = started + downloadQueue.size,
+                    started = started + queueSize,
                     skipped = skipped,
                     failed = failed,
                 )
@@ -144,13 +150,14 @@ constructor(
     }
 
     private fun startNextQueuedDownload() {
-        if (downloadQueue.isEmpty()) return
-        val next = downloadQueue.removeFirst()
         viewModelScope.launch(Dispatchers.IO) {
+            val next = queueMutex.withLock {
+                if (downloadQueue.isEmpty()) return@launch
+                downloadQueue.removeFirst()
+            }
             if (startEpisodeDownload(next)) {
-                activeDownloadCount++
+                queueMutex.withLock { activeDownloadCount++ }
             } else {
-                // Try the next one if this one failed
                 startNextQueuedDownload()
             }
             loadSeason(seasonId)
@@ -252,17 +259,18 @@ constructor(
                             _state.value.copy(episodeDownloadProgress = progressMap)
                         )
 
-                        if (hasActive || downloadQueue.isNotEmpty()) {
+                        val queueNotEmpty = queueMutex.withLock { downloadQueue.isNotEmpty() }
+                        if (hasActive || queueNotEmpty) {
                             handler.postDelayed(self, Constants.DOWNLOAD_POLL_INTERVAL_MS)
                         } else {
                             isPolling = false
-                            activeDownloadCount = 0
+                            queueMutex.withLock { activeDownloadCount = 0 }
                             // Reload to get final state (renamed files etc.)
                             loadSeason(seasonId)
                         }
 
                         // Start queued downloads as active ones complete
-                        if (downloadQueue.isNotEmpty()) {
+                        if (queueNotEmpty) {
                             val maxConcurrent =
                                 appPreferences.getValue(appPreferences.maxConcurrentDownloads)
                             val currentActive =
