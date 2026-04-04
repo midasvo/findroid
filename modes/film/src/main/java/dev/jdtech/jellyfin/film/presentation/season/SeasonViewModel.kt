@@ -51,7 +51,6 @@ constructor(
     // Download queue: episodes waiting to be started
     private val queueMutex = Mutex()
     private val downloadQueue = ArrayDeque<FindroidEpisode>()
-    private var activeDownloadCount = 0
 
     fun loadSeason(seasonId: UUID) {
         this.seasonId = seasonId
@@ -103,7 +102,6 @@ constructor(
             queueMutex.withLock {
                 downloadQueue.clear()
                 downloadQueue.addAll(rest)
-                activeDownloadCount = 0
             }
 
             var started = 0
@@ -112,7 +110,6 @@ constructor(
                 val result = startEpisodeDownload(episode)
                 if (result) {
                     started++
-                    queueMutex.withLock { activeDownloadCount++ }
                 } else {
                     failed++
                 }
@@ -147,21 +144,6 @@ constructor(
                 storageIndex = storageIndex,
             )
         return downloadId != -1L
-    }
-
-    private fun startNextQueuedDownload() {
-        viewModelScope.launch(Dispatchers.IO) {
-            val next = queueMutex.withLock {
-                if (downloadQueue.isEmpty()) return@launch
-                downloadQueue.removeFirst()
-            }
-            if (startEpisodeDownload(next)) {
-                queueMutex.withLock { activeDownloadCount++ }
-            } else {
-                startNextQueuedDownload()
-            }
-            loadSeason(seasonId)
-        }
     }
 
     fun deleteSeasonDownloads() {
@@ -207,7 +189,7 @@ constructor(
             object : Runnable {
                 override fun run() {
                     val self = this
-                    viewModelScope.launch {
+                    viewModelScope.launch(Dispatchers.IO) {
                         val episodes = _state.value.episodes
                         val progressMap = _state.value.episodeDownloadProgress.toMutableMap()
                         var hasActive = false
@@ -227,12 +209,11 @@ constructor(
                                     when (status) {
                                         DownloadManager.STATUS_PENDING -> DownloadStatus.PENDING
                                         DownloadManager.STATUS_RUNNING -> DownloadStatus.DOWNLOADING
-                                        DownloadManager.STATUS_SUCCESSFUL -> {
-                                            // Will be picked up as COMPLETED after reload
+                                        DownloadManager.STATUS_SUCCESSFUL ->
                                             DownloadStatus.COMPLETED
-                                        }
                                         DownloadManager.STATUS_FAILED -> DownloadStatus.FAILED
-                                        else -> DownloadStatus.PENDING
+                                        // Unknown/missing entry = treat as completed, not active
+                                        else -> DownloadStatus.COMPLETED
                                     }
                                 progressMap[episode.id] =
                                     DownloadProgress(
@@ -259,17 +240,8 @@ constructor(
                             _state.value.copy(episodeDownloadProgress = progressMap)
                         )
 
+                        // Start queued downloads synchronously as slots free up
                         val queueNotEmpty = queueMutex.withLock { downloadQueue.isNotEmpty() }
-                        if (hasActive || queueNotEmpty) {
-                            handler.postDelayed(self, Constants.DOWNLOAD_POLL_INTERVAL_MS)
-                        } else {
-                            isPolling = false
-                            queueMutex.withLock { activeDownloadCount = 0 }
-                            // Reload to get final state (renamed files etc.)
-                            loadSeason(seasonId)
-                        }
-
-                        // Start queued downloads as active ones complete
                         if (queueNotEmpty) {
                             val maxConcurrent =
                                 appPreferences.getValue(appPreferences.maxConcurrentDownloads)
@@ -278,10 +250,48 @@ constructor(
                                     it.status == DownloadStatus.PENDING ||
                                         it.status == DownloadStatus.DOWNLOADING
                                 }
-                            val slotsAvailable = maxConcurrent - currentActive
-                            repeat(slotsAvailable.coerceAtLeast(0)) {
-                                startNextQueuedDownload()
+                            val slotsAvailable =
+                                (maxConcurrent - currentActive).coerceAtLeast(0)
+                            var startedAny = false
+                            repeat(slotsAvailable) {
+                                val next = queueMutex.withLock {
+                                    if (downloadQueue.isEmpty()) return@repeat
+                                    downloadQueue.removeFirst()
+                                }
+                                if (startEpisodeDownload(next)) {
+                                    startedAny = true
+                                }
                             }
+                            if (startedAny) {
+                                // Reload episodes to pick up new LOCAL sources
+                                try {
+                                    val season = repository.getSeason(seasonId)
+                                    val reloadedEpisodes =
+                                        repository.getEpisodes(
+                                            seriesId = season.seriesId,
+                                            seasonId = seasonId,
+                                            fields = listOf(ItemFields.OVERVIEW),
+                                        )
+                                    _state.emit(
+                                        _state.value.copy(
+                                            season = season,
+                                            episodes = reloadedEpisodes,
+                                            episodeDownloadProgress =
+                                                buildDownloadProgressMap(reloadedEpisodes),
+                                        )
+                                    )
+                                } catch (_: Exception) {}
+                            }
+                        }
+
+                        val queueStillNotEmpty =
+                            queueMutex.withLock { downloadQueue.isNotEmpty() }
+                        if (hasActive || queueStillNotEmpty) {
+                            handler.postDelayed(self, Constants.DOWNLOAD_POLL_INTERVAL_MS)
+                        } else {
+                            isPolling = false
+                            // Reload to get final state (renamed files etc.)
+                            loadSeason(seasonId)
                         }
                     }
                 }
