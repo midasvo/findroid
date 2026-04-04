@@ -36,7 +36,7 @@ constructor(
         viewModelScope.launch {
             try {
                 val movie = repository.getMovie(movieId)
-                val videoMetadata = videoMetadataParser.parse(movie.sources.first())
+                val videoMetadata = movie.sources.firstOrNull()?.let { videoMetadataParser.parse(it) }
                 val actors = getActors(movie)
                 val director = getDirector(movie)
                 val writers = getWriters(movie)

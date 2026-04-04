@@ -52,10 +52,14 @@ class DownloaderViewModel @Inject constructor(
             _state.emit(DownloaderState(status = DownloadManager.STATUS_PENDING))
             val storageIndex =
                 appPreferences.getValue(appPreferences.downloadStorageIndex)?.toIntOrNull() ?: 0
+            val source = item.sources.firstOrNull() ?: run {
+                _state.emit(DownloaderState(status = DownloadManager.STATUS_FAILED))
+                return@launch
+            }
             val (downloadId, uiText) =
                 downloader.downloadItem(
                     item = item,
-                    sourceId = item.sources.first().id,
+                    sourceId = source.id,
                     storageIndex = storageIndex,
                 )
             if (downloadId != -1L) {
@@ -84,9 +88,11 @@ class DownloaderViewModel @Inject constructor(
 
     private fun deleteDownload(item: FindroidItem) {
         viewModelScope.launch {
+            val source = item.sources.firstOrNull { it.type == FindroidSourceType.LOCAL }
+                ?: return@launch
             downloader.deleteItem(
                 item = item,
-                source = item.sources.first { it.type == FindroidSourceType.LOCAL },
+                source = source,
             )
             eventsChannel.send(DownloaderEvent.Deleted)
         }
