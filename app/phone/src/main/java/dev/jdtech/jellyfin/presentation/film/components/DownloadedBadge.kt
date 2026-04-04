@@ -23,7 +23,7 @@ import dev.jdtech.jellyfin.presentation.theme.FindroidTheme
 fun DownloadedBadge(modifier: Modifier = Modifier) {
     BaseBadge(modifier = modifier) {
         Icon(
-            painter = painterResource(CoreR.drawable.ic_download),
+            painter = painterResource(CoreR.drawable.ic_check),
             contentDescription = stringResource(CoreR.string.downloaded_indicator),
             tint = MaterialTheme.colorScheme.onPrimary,
             modifier = Modifier.size(16.dp).align(Alignment.Center),
