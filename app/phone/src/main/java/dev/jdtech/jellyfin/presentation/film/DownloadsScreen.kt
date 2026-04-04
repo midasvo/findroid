@@ -22,14 +22,21 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -45,14 +52,17 @@ import dev.jdtech.jellyfin.film.presentation.downloads.ActiveDownload
 import dev.jdtech.jellyfin.film.presentation.downloads.DownloadsState
 import dev.jdtech.jellyfin.film.presentation.downloads.DownloadsViewModel
 import dev.jdtech.jellyfin.models.CollectionSection
+import dev.jdtech.jellyfin.models.FindroidEpisode
 import dev.jdtech.jellyfin.models.FindroidItem
 import dev.jdtech.jellyfin.models.UiText
-import dev.jdtech.jellyfin.models.FindroidEpisode
 import dev.jdtech.jellyfin.presentation.film.components.ActiveDownloadCard
 import dev.jdtech.jellyfin.presentation.film.components.Direction
 import dev.jdtech.jellyfin.presentation.film.components.ItemCard
 import dev.jdtech.jellyfin.presentation.theme.FindroidTheme
 import dev.jdtech.jellyfin.presentation.theme.spacings
+
+private const val TAB_DOWNLOADS = 0
+private const val TAB_QUEUE = 1
 
 @Composable
 fun DownloadsScreen(
@@ -81,6 +91,7 @@ private fun DownloadsScreenLayout(
 ) {
     val context = LocalContext.current
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+    var selectedTab by rememberSaveable { mutableIntStateOf(TAB_DOWNLOADS) }
 
     Scaffold(
         modifier =
@@ -96,102 +107,165 @@ private fun DownloadsScreenLayout(
         },
         contentWindowInsets = WindowInsets.statusBars.union(WindowInsets.displayCutout),
     ) { innerPadding ->
-        val hasContent = state.activeDownloads.isNotEmpty() || state.sections.isNotEmpty()
-
-        if (!hasContent && !state.isLoading) {
-            Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-                Column(
-                    modifier = Modifier.align(Alignment.Center),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(
-                        text = stringResource(CoreR.string.no_downloads),
-                        style = MaterialTheme.typography.bodyMedium,
+        Column(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
+            // Segmented button row
+            val tabLabels = listOf(
+                stringResource(CoreR.string.title_download),
+                stringResource(CoreR.string.download_queue),
+            )
+            SingleChoiceSegmentedButtonRow(
+                modifier =
+                    Modifier.fillMaxWidth()
+                        .padding(
+                            horizontal = MaterialTheme.spacings.default,
+                            vertical = MaterialTheme.spacings.small,
+                        ),
+            ) {
+                tabLabels.forEachIndexed { index, label ->
+                    SegmentedButton(
+                        selected = index == selectedTab,
+                        onClick = { selectedTab = index },
+                        shape =
+                            SegmentedButtonDefaults.itemShape(
+                                index = index,
+                                count = tabLabels.size,
+                            ),
+                        colors =
+                            SegmentedButtonDefaults.colors(
+                                inactiveContainerColor = Color.Transparent,
+                            ),
+                        label = { Text(label) },
                     )
-                    Spacer(Modifier.height(MaterialTheme.spacings.small))
+                }
+            }
+
+            when (selectedTab) {
+                TAB_DOWNLOADS -> DownloadsTabContent(
+                    state = state,
+                    onItemClick = onItemClick,
+                    context = context,
+                )
+                TAB_QUEUE -> QueueTabContent(
+                    state = state,
+                    onCancelDownload = onCancelDownload,
+                    onDismissDownload = onDismissDownload,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DownloadsTabContent(
+    state: DownloadsState,
+    onItemClick: (FindroidItem) -> Unit,
+    context: android.content.Context,
+) {
+    val hasContent = state.sections.isNotEmpty()
+
+    if (!hasContent && !state.isLoading) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier.align(Alignment.Center),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    text = stringResource(CoreR.string.no_downloads),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(Modifier.height(MaterialTheme.spacings.small))
+                Text(
+                    text = stringResource(CoreR.string.no_downloads_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+
+    if (hasContent) {
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = 160.dp),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(all = MaterialTheme.spacings.default),
+            horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacings.default),
+            verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacings.default),
+        ) {
+            for (section in state.sections) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
                     Text(
-                        text = stringResource(CoreR.string.no_downloads_hint),
+                        text = section.name.asString(),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                }
+                items(items = section.items, key = { it.id }) { item ->
+                    ItemCard(
+                        item = item,
+                        direction =
+                            if (item is FindroidEpisode) Direction.HORIZONTAL
+                            else Direction.VERTICAL,
+                        onClick = { onItemClick(item) },
+                    )
+                }
+            }
+
+            // Storage info footer
+            if (state.storageUsedBytes > 0 || state.storageFreeBytes > 0) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Spacer(Modifier.height(MaterialTheme.spacings.small))
+                    val locationName =
+                        if (state.storageIsExternal) {
+                            stringResource(CoreR.string.external)
+                        } else {
+                            stringResource(CoreR.string.internal)
+                        }
+                    Text(
+                        text =
+                            stringResource(
+                                CoreR.string.storage_usage_location,
+                                locationName,
+                                Formatter.formatFileSize(context, state.storageUsedBytes),
+                                Formatter.formatFileSize(context, state.storageFreeBytes),
+                            ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
         }
+    }
+}
 
-        if (hasContent) {
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 160.dp),
-                modifier = Modifier.padding(innerPadding).fillMaxSize(),
-                contentPadding = PaddingValues(all = MaterialTheme.spacings.default),
-                horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacings.default),
-                verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacings.default),
-            ) {
-                // Active downloads section
-                if (state.activeDownloads.isNotEmpty()) {
-                    item(span = { GridItemSpan(maxLineSpan) }) {
-                        Text(
-                            text = stringResource(CoreR.string.active_downloads),
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                    }
-                    items(
-                        items = state.activeDownloads,
-                        key = { it.item.id },
-                        span = { GridItemSpan(maxLineSpan) },
-                    ) { activeDownload ->
-                        ActiveDownloadCard(
-                            activeDownload = activeDownload,
-                            onCancelClick = { onCancelDownload(activeDownload) },
-                            onDismissClick = { onDismissDownload(activeDownload) },
-                        )
-                    }
-                    item(span = { GridItemSpan(maxLineSpan) }) {
-                        Spacer(Modifier.height(MaterialTheme.spacings.small))
-                    }
-                }
-
-                // Completed downloads sections
-                for (section in state.sections) {
-                    item(span = { GridItemSpan(maxLineSpan) }) {
-                        Text(
-                            text = section.name.asString(),
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                    }
-                    items(items = section.items, key = { it.id }) { item ->
-                        ItemCard(
-                            item = item,
-                            direction =
-                                if (item is FindroidEpisode) Direction.HORIZONTAL
-                                else Direction.VERTICAL,
-                            onClick = { onItemClick(item) },
-                        )
-                    }
-                }
-
-                // Storage info footer
-                if (state.storageUsedBytes > 0 || state.storageFreeBytes > 0) {
-                    item(span = { GridItemSpan(maxLineSpan) }) {
-                        Spacer(Modifier.height(MaterialTheme.spacings.small))
-                        val locationName =
-                            if (state.storageIsExternal) {
-                                stringResource(CoreR.string.external)
-                            } else {
-                                stringResource(CoreR.string.internal)
-                            }
-                        Text(
-                            text =
-                                stringResource(
-                                    CoreR.string.storage_usage_location,
-                                    locationName,
-                                    Formatter.formatFileSize(context, state.storageUsedBytes),
-                                    Formatter.formatFileSize(context, state.storageFreeBytes),
-                                ),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
+@Composable
+private fun QueueTabContent(
+    state: DownloadsState,
+    onCancelDownload: (ActiveDownload) -> Unit,
+    onDismissDownload: (ActiveDownload) -> Unit,
+) {
+    if (state.activeDownloads.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Text(
+                text = stringResource(CoreR.string.no_downloads),
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.align(Alignment.Center),
+            )
+        }
+    } else {
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(1),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(all = MaterialTheme.spacings.default),
+            verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacings.default),
+        ) {
+            items(
+                items = state.activeDownloads,
+                key = { it.item.id },
+            ) { activeDownload ->
+                ActiveDownloadCard(
+                    activeDownload = activeDownload,
+                    onCancelClick = { onCancelDownload(activeDownload) },
+                    onDismissClick = { onDismissDownload(activeDownload) },
+                )
             }
         }
     }
