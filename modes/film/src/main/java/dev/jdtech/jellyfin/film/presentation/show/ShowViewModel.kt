@@ -89,14 +89,28 @@ constructor(
             for (seasonId in seasonIds) {
                 val episodes = repository.getEpisodes(seriesId = showId, seasonId = seasonId)
                 for (episode in episodes) {
-                    if (!episode.canDownload || episode.isDownloaded()) {
-                        if (episode.isDownloaded()) skipped++
+                    if (episode.isDownloaded()) {
+                        skipped++
+                        continue
+                    }
+                    // The episode list from getEpisodes() may not include mediaSources,
+                    // so fetch them separately for each episode we want to download.
+                    val sources =
+                        try {
+                            repository.getMediaSources(episode.id)
+                        } catch (_: Exception) {
+                            failed++
+                            continue
+                        }
+                    val sourceId = sources.firstOrNull()?.id
+                    if (sourceId == null) {
+                        failed++
                         continue
                     }
                     val (downloadId, _) =
                         downloader.downloadItem(
                             item = episode,
-                            sourceId = episode.sources.first().id,
+                            sourceId = sourceId,
                             storageIndex = storageIndex,
                         )
                     if (downloadId != -1L) {
