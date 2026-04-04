@@ -11,9 +11,10 @@ plugins {
 
 val keystorePropertiesFile = rootProject.file("keystore.properties")
 val envKeystoreFile: String? = System.getenv("KEYSTORE_FILE")
-val keystoreProps: Properties? = if (envKeystoreFile == null && keystorePropertiesFile.exists()) {
-    Properties().apply { load(keystorePropertiesFile.inputStream()) }
-} else null
+val keystoreProps: Properties? =
+    if (envKeystoreFile == null && keystorePropertiesFile.exists()) {
+        Properties().apply { load(keystorePropertiesFile.inputStream()) }
+    } else null
 
 android {
     namespace = "dev.jdtech.jellyfin"
