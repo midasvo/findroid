@@ -13,6 +13,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import timber.log.Timber
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
@@ -31,7 +32,7 @@ class LoginViewModel @Inject constructor(private val repository: SetupRepository
             try {
                 val server = repository.getCurrentServer()
                 _state.emit(_state.value.copy(serverName = server?.name))
-            } catch (_: Exception) {}
+            } catch (e: Exception) { Timber.e(e, "Failed to load server") }
         }
     }
 
@@ -40,7 +41,7 @@ class LoginViewModel @Inject constructor(private val repository: SetupRepository
             try {
                 val loginDisclaimer = repository.loadDisclaimer()
                 _state.emit(_state.value.copy(disclaimer = loginDisclaimer))
-            } catch (_: Exception) {}
+            } catch (e: Exception) { Timber.e(e, "Failed to load disclaimer") }
         }
     }
 
@@ -49,7 +50,7 @@ class LoginViewModel @Inject constructor(private val repository: SetupRepository
             try {
                 val isEnabled = repository.getIsQuickConnectEnabled()
                 _state.emit(_state.value.copy(quickConnectEnabled = isEnabled))
-            } catch (_: Exception) {}
+            } catch (e: Exception) { Timber.e(e, "Failed to load quick connect status") }
         }
     }
 

@@ -8,6 +8,7 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import dev.jdtech.jellyfin.api.JellyfinApi
 import dev.jdtech.jellyfin.database.ServerDatabaseDao
+import timber.log.Timber
 import dev.jdtech.jellyfin.models.FindroidItem
 import dev.jdtech.jellyfin.models.User
 import dev.jdtech.jellyfin.models.toFindroidEpisode
@@ -90,7 +91,7 @@ constructor(
                 )
 
                 database.setUserDataToBeSynced(user.id, item.id, false)
-            } catch (_: Exception) {}
+            } catch (e: Exception) { Timber.e(e, "Failed to sync user data") }
         }
     }
 }

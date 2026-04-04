@@ -384,7 +384,7 @@ class JellyfinRepositoryImpl(
                     if (sources != null) {
                         return@withContext File(sources.first(), index.toString()).readBytes()
                     }
-                } catch (_: Exception) {}
+                } catch (e: Exception) { Timber.e(e, "Failed to read local trickplay data") }
 
                 return@withContext jellyfinApi.trickplayApi
                     .getTrickplayTileImage(itemId, width, index)

@@ -111,7 +111,7 @@ fun SettingsScreen(
             is SettingsEvent.RestartActivity -> {
                 try {
                     (context as Activity).restart()
-                } catch (_: Exception) {}
+                } catch (e: Exception) { Timber.e(e, "Failed to restart activity") }
             }
         }
     }

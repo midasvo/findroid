@@ -161,7 +161,7 @@ class DownloaderImpl(
             try {
                 val source = jellyfinRepository.getMediaSources(item.id).first { it.id == sourceId }
                 deleteItem(item, source)
-            } catch (_: Exception) {}
+            } catch (e: Exception) { Timber.e(e, "Failed to clean up failed download") }
             Timber.e(e)
             return@coroutineScope Pair(
                 -1,

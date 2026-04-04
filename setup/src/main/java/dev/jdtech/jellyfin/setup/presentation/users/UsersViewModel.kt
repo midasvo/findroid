@@ -10,6 +10,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
+import timber.log.Timber
 import kotlinx.coroutines.launch
 
 @HiltViewModel
@@ -35,7 +36,7 @@ class UsersViewModel @Inject constructor(private val repository: SetupRepository
                         publicUsers = publicUsers.filterNot { userIds.contains(it.id) }
                     )
                 )
-            } catch (_: Exception) {}
+            } catch (e: Exception) { Timber.e(e, "Failed to load public users") }
         }
     }
 
