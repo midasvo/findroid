@@ -242,7 +242,9 @@ private fun QueueTabContent(
     onCancelDownload: (ActiveDownload) -> Unit,
     onDismissDownload: (ActiveDownload) -> Unit,
 ) {
-    if (state.activeDownloads.isEmpty()) {
+    val allItems = state.activeDownloads + state.queuedDownloads
+
+    if (allItems.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize()) {
             Text(
                 text = stringResource(CoreR.string.no_downloads),
@@ -258,7 +260,7 @@ private fun QueueTabContent(
             verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacings.default),
         ) {
             items(
-                items = state.activeDownloads,
+                items = allItems,
                 key = { it.item.id },
             ) { activeDownload ->
                 ActiveDownloadCard(

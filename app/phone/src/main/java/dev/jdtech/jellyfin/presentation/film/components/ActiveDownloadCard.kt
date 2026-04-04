@@ -54,6 +54,7 @@ fun ActiveDownloadCard(
 
     val statusText =
         when (progress.status) {
+            DownloadStatus.QUEUED -> stringResource(CoreR.string.download_queued)
             DownloadStatus.PENDING -> stringResource(CoreR.string.download_pending)
             DownloadStatus.DOWNLOADING -> stringResource(CoreR.string.download_downloading)
             DownloadStatus.FAILED -> stringResource(CoreR.string.download_failed)
@@ -118,6 +119,12 @@ fun ActiveDownloadCard(
                 }
                 Spacer(Modifier.height(4.dp))
                 when (progress.status) {
+                    DownloadStatus.QUEUED -> {
+                        LinearProgressIndicator(
+                            progress = { 0f },
+                            modifier = Modifier.fillMaxWidth().height(3.dp),
+                        )
+                    }
                     DownloadStatus.PENDING -> {
                         LinearProgressIndicator(
                             modifier = Modifier.fillMaxWidth().height(3.dp),
@@ -132,21 +139,23 @@ fun ActiveDownloadCard(
                     }
                 }
             }
-            Spacer(Modifier.width(MaterialTheme.spacings.small))
-            CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
-                if (isCompleted) {
-                    FilledTonalIconButton(onClick = onDismissClick) {
-                        Icon(
-                            painter = painterResource(CoreR.drawable.ic_check),
-                            contentDescription = null,
-                        )
-                    }
-                } else {
-                    FilledTonalIconButton(onClick = onCancelClick) {
-                        Icon(
-                            painter = painterResource(CoreR.drawable.ic_x),
-                            contentDescription = null,
-                        )
+            if (progress.status != DownloadStatus.QUEUED) {
+                Spacer(Modifier.width(MaterialTheme.spacings.small))
+                CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
+                    if (isCompleted) {
+                        FilledTonalIconButton(onClick = onDismissClick) {
+                            Icon(
+                                painter = painterResource(CoreR.drawable.ic_check),
+                                contentDescription = null,
+                            )
+                        }
+                    } else {
+                        FilledTonalIconButton(onClick = onCancelClick) {
+                            Icon(
+                                painter = painterResource(CoreR.drawable.ic_x),
+                                contentDescription = null,
+                            )
+                        }
                     }
                 }
             }

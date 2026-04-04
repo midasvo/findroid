@@ -2,6 +2,7 @@ package dev.jdtech.jellyfin.core.presentation.downloader
 
 enum class DownloadStatus {
     NONE,
+    QUEUED,
     PENDING,
     DOWNLOADING,
     COMPLETED,

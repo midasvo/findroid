@@ -199,6 +199,7 @@ private fun EpisodeDownloadButton(
                 )
             }
         }
+        DownloadStatus.QUEUED,
         DownloadStatus.PENDING -> {
             // Pending — indeterminate circular
             Box(

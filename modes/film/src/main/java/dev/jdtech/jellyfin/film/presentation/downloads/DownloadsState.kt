@@ -13,6 +13,7 @@ data class ActiveDownload(
 
 data class DownloadsState(
     val activeDownloads: List<ActiveDownload> = emptyList(),
+    val queuedDownloads: List<ActiveDownload> = emptyList(),
     val sections: List<CollectionSection> = emptyList(),
     val storageUsedBytes: Long = 0L,
     val storageFreeBytes: Long = 0L,

@@ -13,6 +13,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.jdtech.jellyfin.core.Constants
 import dev.jdtech.jellyfin.core.R as CoreR
 import dev.jdtech.jellyfin.core.presentation.downloader.DownloadProgress
+import dev.jdtech.jellyfin.core.presentation.downloader.DownloadQueueManager
 import dev.jdtech.jellyfin.core.presentation.downloader.DownloadStatus
 import dev.jdtech.jellyfin.database.ServerDatabaseDao
 import dev.jdtech.jellyfin.models.CollectionSection
@@ -43,6 +44,7 @@ constructor(
     private val database: ServerDatabaseDao,
     private val downloader: Downloader,
     private val appPreferences: AppPreferences,
+    private val downloadQueueManager: DownloadQueueManager,
 ) : ViewModel() {
     private val _state = MutableStateFlow(DownloadsState())
     val state = _state.asStateFlow()
@@ -51,6 +53,25 @@ constructor(
     private var isPolling = false
     private var completionPollCount = 0
     private val dismissedIds = mutableSetOf<UUID>()
+
+    init {
+        // Observe queued items from SeasonViewModel and merge into state
+        viewModelScope.launch {
+            downloadQueueManager.queuedItems.collect { queuedItems ->
+                val activeIds = _state.value.activeDownloads.map { it.item.id }.toSet()
+                val queuedDownloads = queuedItems
+                    .filter { it.id !in activeIds && it.id !in dismissedIds }
+                    .map { item ->
+                        ActiveDownload(
+                            item = item,
+                            progress = DownloadProgress(status = DownloadStatus.QUEUED),
+                            downloadId = null,
+                        )
+                    }
+                _state.emit(_state.value.copy(queuedDownloads = queuedDownloads))
+            }
+        }
+    }
 
     fun loadItems() {
         viewModelScope.launch {

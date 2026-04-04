@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.jdtech.jellyfin.core.presentation.downloader.DownloadProgress
+import dev.jdtech.jellyfin.core.presentation.downloader.DownloadQueueManager
 import dev.jdtech.jellyfin.core.presentation.downloader.DownloadStatus
 import dev.jdtech.jellyfin.models.FindroidEpisode
 import dev.jdtech.jellyfin.models.FindroidSourceType
@@ -33,6 +34,7 @@ constructor(
     private val repository: JellyfinRepository,
     private val downloader: Downloader,
     private val appPreferences: AppPreferences,
+    private val downloadQueueManager: DownloadQueueManager,
 ) : ViewModel() {
     private val _state = MutableStateFlow(SeasonState())
     val state = _state.asStateFlow()
@@ -115,8 +117,12 @@ constructor(
             // Track active downloads: episodeId -> downloadId
             val active = mutableMapOf<UUID, Long>()
 
+            // Publish pending queue for the Downloads Queue tab
+            downloadQueueManager.setQueuedItems(pending.toList())
+
             // Fill initial slots
             fillSlots(pending, active, maxConcurrent)
+            downloadQueueManager.setQueuedItems(pending.toList())
             reloadSeasonState()
 
             // Poll until everything is done
@@ -141,6 +147,7 @@ constructor(
                     // Start next downloads to fill freed slots
                     val started = fillSlots(pending, active, maxConcurrent)
                     if (started > 0 || completed.isNotEmpty()) {
+                        downloadQueueManager.setQueuedItems(pending.toList())
                         reloadSeasonState()
                     }
                 }
@@ -149,7 +156,8 @@ constructor(
                 updateProgressFromDownloadManager(active)
             }
 
-            // Final reload to get renamed files etc.
+            // All done — clear queue
+            downloadQueueManager.clear()
             reloadSeasonState()
         }
     }
@@ -254,6 +262,7 @@ constructor(
 
     fun deleteSeasonDownloads() {
         downloadQueueJob?.cancel()
+        downloadQueueManager.clear()
         viewModelScope.launch(Dispatchers.IO) {
             for (episode in _state.value.episodes) {
                 val localSource =
