@@ -67,7 +67,9 @@ suspend fun BaseItemDto.toFindroidMovie(
         images = toFindroidImages(jellyfinRepository),
         chapters = toFindroidChapters(),
         trickplayInfo =
-            trickplay?.mapValues { it.value[it.value.keys.max()]!!.toFindroidTrickplayInfo() },
+            trickplay?.mapValues { entry ->
+                entry.value[entry.value.keys.maxOrNull()]?.toFindroidTrickplayInfo()
+            }?.filterValues { it != null }?.mapValues { it.value!! },
     )
 }
 
