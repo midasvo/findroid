@@ -102,10 +102,13 @@ class DownloadReceiver : BroadcastReceiver() {
 
     private fun deleteItemAsync(sourceDto: FindroidSourceDto, pendingResult: PendingResult) {
         val source = sourceDto.toFindroidSource(database)
-        val items = mutableListOf<FindroidItem>()
-        items.addAll(database.getMovies().map { it.toFindroidMovie(database, repository.getUserId()) })
-        items.addAll(database.getEpisodes().map { it.toFindroidEpisode(database, repository.getUserId()) })
-        val item = items.firstOrNull { it.id == sourceDto.itemId }
+        val userId = repository.getUserId()
+        val item: FindroidItem? =
+            try { database.getMovie(sourceDto.itemId).toFindroidMovie(database, userId) }
+            catch (_: Exception) {
+                try { database.getEpisode(sourceDto.itemId).toFindroidEpisode(database, userId) }
+                catch (_: Exception) { null }
+            }
         if (item == null) {
             pendingResult.finish()
             return
