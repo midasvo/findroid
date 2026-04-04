@@ -67,6 +67,7 @@ fun DownloadsScreen(
         state = state,
         onItemClick = onItemClick,
         onCancelDownload = { viewModel.cancelDownload(it) },
+        onDismissDownload = { viewModel.dismissCompletedDownload(it) },
     )
 }
 
@@ -76,6 +77,7 @@ private fun DownloadsScreenLayout(
     state: DownloadsState,
     onItemClick: (FindroidItem) -> Unit,
     onCancelDownload: (ActiveDownload) -> Unit,
+    onDismissDownload: (ActiveDownload) -> Unit,
 ) {
     val context = LocalContext.current
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
@@ -140,6 +142,7 @@ private fun DownloadsScreenLayout(
                         ActiveDownloadCard(
                             activeDownload = activeDownload,
                             onCancelClick = { onCancelDownload(activeDownload) },
+                            onDismissClick = { onDismissDownload(activeDownload) },
                         )
                     }
                     item(span = { GridItemSpan(maxLineSpan) }) {
@@ -215,6 +218,7 @@ private fun DownloadsScreenLayoutPreview() {
                 ),
             onItemClick = {},
             onCancelDownload = {},
+            onDismissDownload = {},
         )
     }
 }
@@ -227,6 +231,7 @@ private fun DownloadsScreenLayoutEmptyPreview() {
             state = DownloadsState(),
             onItemClick = {},
             onCancelDownload = {},
+            onDismissDownload = {},
         )
     }
 }

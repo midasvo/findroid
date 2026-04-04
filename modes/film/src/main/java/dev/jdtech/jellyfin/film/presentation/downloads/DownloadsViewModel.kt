@@ -48,6 +48,7 @@ constructor(
 
     private val handler = Handler(Looper.getMainLooper())
     private var isPolling = false
+    private var completionPollCount = 0
 
     fun loadItems() {
         viewModelScope.launch {
@@ -85,6 +86,20 @@ constructor(
                 downloader.cancelDownload(activeDownload.item, it)
             }
             loadItems()
+        }
+    }
+
+    fun dismissCompletedDownload(activeDownload: ActiveDownload) {
+        viewModelScope.launch {
+            val updated = _state.value.activeDownloads.filter { it.item.id != activeDownload.item.id }
+            _state.emit(_state.value.copy(activeDownloads = updated))
+            if (updated.none {
+                    it.progress.status == DownloadStatus.PENDING ||
+                        it.progress.status == DownloadStatus.DOWNLOADING
+                }
+            ) {
+                loadItems()
+            }
         }
     }
 
@@ -192,9 +207,15 @@ constructor(
                         _state.emit(_state.value.copy(activeDownloads = activeDownloads))
 
                         if (hasActive) {
+                            completionPollCount = 0
+                            handler.postDelayed(self, Constants.DOWNLOAD_POLL_INTERVAL_MS)
+                        } else if (activeDownloads.isNotEmpty() && completionPollCount < 3) {
+                            // Keep polling briefly so DownloadReceiver can rename files
+                            completionPollCount++
                             handler.postDelayed(self, Constants.DOWNLOAD_POLL_INTERVAL_MS)
                         } else {
                             isPolling = false
+                            completionPollCount = 0
                             // Reload everything to refresh completed sections
                             loadItems()
                         }

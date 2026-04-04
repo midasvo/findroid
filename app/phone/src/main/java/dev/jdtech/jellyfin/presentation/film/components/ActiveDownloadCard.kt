@@ -41,12 +41,14 @@ import kotlin.math.roundToInt
 fun ActiveDownloadCard(
     activeDownload: ActiveDownload,
     onCancelClick: () -> Unit,
+    onDismissClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val progress = activeDownload.progress
+    val isCompleted = progress.status == DownloadStatus.COMPLETED
     val animatedProgress by
         animateFloatAsState(
-            targetValue = progress.progress,
+            targetValue = if (isCompleted) 1f else progress.progress,
             animationSpec = ProgressIndicatorDefaults.ProgressAnimationSpec,
         )
 
@@ -55,12 +57,14 @@ fun ActiveDownloadCard(
             DownloadStatus.PENDING -> stringResource(CoreR.string.download_pending)
             DownloadStatus.DOWNLOADING -> stringResource(CoreR.string.download_downloading)
             DownloadStatus.FAILED -> stringResource(CoreR.string.download_failed)
+            DownloadStatus.COMPLETED -> stringResource(CoreR.string.download_completed)
             else -> ""
         }
 
     val progressColor =
         when (progress.status) {
             DownloadStatus.FAILED -> MaterialTheme.colorScheme.error
+            DownloadStatus.COMPLETED -> MaterialTheme.colorScheme.tertiary
             else -> ProgressIndicatorDefaults.linearColor
         }
 
@@ -130,11 +134,20 @@ fun ActiveDownloadCard(
             }
             Spacer(Modifier.width(MaterialTheme.spacings.small))
             CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
-                FilledTonalIconButton(onClick = onCancelClick) {
-                    Icon(
-                        painter = painterResource(CoreR.drawable.ic_x),
-                        contentDescription = null,
-                    )
+                if (isCompleted) {
+                    FilledTonalIconButton(onClick = onDismissClick) {
+                        Icon(
+                            painter = painterResource(CoreR.drawable.ic_check),
+                            contentDescription = null,
+                        )
+                    }
+                } else {
+                    FilledTonalIconButton(onClick = onCancelClick) {
+                        Icon(
+                            painter = painterResource(CoreR.drawable.ic_x),
+                            contentDescription = null,
+                        )
+                    }
                 }
             }
         }
@@ -153,6 +166,7 @@ private fun ActiveDownloadCardPreview() {
                     downloadId = 1L,
                 ),
             onCancelClick = {},
+            onDismissClick = {},
         )
     }
 }
