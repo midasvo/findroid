@@ -61,7 +61,7 @@ fun PersonScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
-    LaunchedEffect(true) { viewModel.loadPerson(personId) }
+    LaunchedEffect(personId) { viewModel.loadPerson(personId) }
 
     PersonScreenLayout(
         state = state,

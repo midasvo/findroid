@@ -84,7 +84,7 @@ fun ShowScreen(
 
     val state by viewModel.state.collectAsStateWithLifecycle()
 
-    LaunchedEffect(true) { viewModel.loadShow(showId = showId) }
+    LaunchedEffect(showId) { viewModel.loadShow(showId = showId) }
 
     ObserveAsEvents(viewModel.events) { event ->
         when (event) {
