@@ -15,6 +15,8 @@ import dev.jdtech.jellyfin.utils.toView
 import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -52,10 +54,12 @@ constructor(
                     loadServerName(serverId)
                 }
 
-                loadSuggestions()
-                loadResumeItems()
-                loadNextUpItems()
-                loadViews()
+                awaitAll(
+                    async { loadSuggestions() },
+                    async { loadResumeItems() },
+                    async { loadNextUpItems() },
+                    async { loadViews() },
+                )
             } catch (e: Exception) {
                 _state.emit(_state.value.copy(error = e))
             }
