@@ -47,9 +47,18 @@ Findroid CE uses a different application ID (`nl.midasvo.findroid.ce`) so it can
 - Trickplay (requires Jellyfin 10.9+)
 - Media segments with skip button and auto-skip (requires Jellyfin 10.10+)
 
-## Merged community contributions
+## What's different from upstream?
 
-_(List what PRs you've merged here — update this as you go)_
+Findroid CE adds the following on top of upstream Findroid:
+
+- **Per-episode download progress** — see real-time download status (pending, downloading, completed, failed) directly in the season episode list, no need to open each episode
+- **Interactive download buttons per episode** — tap to download or delete individual episodes inline, Netflix/Disney+ style
+- **Bulk season & series download** — download an entire season or series with one tap, with queued concurrent downloading
+- **Configurable max concurrent downloads** — limit how many episodes download simultaneously (default: 2), configurable in settings
+- **Download feedback** — toast messages summarizing bulk download results (started, skipped, failed)
+- **Season download status on show screen** — see "3/10 downloaded" per season in the season selection dialog
+- **Redesigned downloads screen** — active downloads with progress at the top, completed items below, storage usage info at the bottom
+- **Dependency updates** — kept up to date via Renovate
 
 ## Upstream sync
 
