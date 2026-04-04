@@ -157,14 +157,26 @@ interface ServerDatabaseDao {
     @Query("SELECT * FROM movies WHERE serverId = :serverId ORDER BY name ASC")
     fun getMoviesByServerId(serverId: String): List<FindroidMovieDto>
 
+    @Query("SELECT COUNT(*) FROM movies WHERE serverId = :serverId")
+    fun countMoviesByServerId(serverId: String): Int
+
+    @Query("SELECT * FROM movies WHERE id = :id")
+    fun getMovieOrNull(id: UUID): FindroidMovieDto?
+
     @Insert(onConflict = OnConflictStrategy.IGNORE) fun insertShow(show: FindroidShowDto)
 
     @Query("SELECT * FROM shows WHERE id = :id") fun getShow(id: UUID): FindroidShowDto
+
+    @Query("SELECT * FROM shows WHERE id = :id")
+    fun getShowOrNull(id: UUID): FindroidShowDto?
 
     @Query("SELECT * FROM shows ORDER BY name ASC") fun getShows(): List<FindroidShowDto>
 
     @Query("SELECT * FROM shows WHERE serverId = :serverId ORDER BY name ASC")
     fun getShowsByServerId(serverId: String): List<FindroidShowDto>
+
+    @Query("SELECT COUNT(*) FROM shows WHERE serverId = :serverId")
+    fun countShowsByServerId(serverId: String): Int
 
     @Query("DELETE FROM shows WHERE id = :id") fun deleteShow(id: UUID)
 
@@ -180,6 +192,9 @@ interface ServerDatabaseDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE) fun insertEpisode(episode: FindroidEpisodeDto)
 
     @Query("SELECT * FROM episodes WHERE id = :id") fun getEpisode(id: UUID): FindroidEpisodeDto
+
+    @Query("SELECT * FROM episodes WHERE id = :id")
+    fun getEpisodeOrNull(id: UUID): FindroidEpisodeDto?
 
     @Query(
         "SELECT * FROM episodes WHERE seriesId = :seriesId ORDER BY parentIndexNumber ASC, indexNumber ASC"

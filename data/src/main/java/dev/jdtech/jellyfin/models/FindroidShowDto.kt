@@ -18,6 +18,7 @@ data class FindroidShowDto(
     val status: String,
     val productionYear: Int?,
     val endDate: LocalDateTime?,
+    val genres: List<String>? = null,
 )
 
 fun FindroidShow.toFindroidShowDto(serverId: String? = null): FindroidShowDto {
@@ -33,5 +34,6 @@ fun FindroidShow.toFindroidShowDto(serverId: String? = null): FindroidShowDto {
         status = status,
         productionYear = productionYear,
         endDate = endDate,
+        genres = genres,
     )
 }

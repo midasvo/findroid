@@ -90,7 +90,7 @@ fun FindroidMovieDto.toFindroidMovie(database: ServerDatabaseDao, userId: UUID):
         runtimeTicks = runtimeTicks,
         playbackPositionTicks = userData.playbackPositionTicks,
         premiereDate = premiereDate,
-        genres = emptyList(),
+        genres = genres ?: emptyList(),
         people = emptyList(),
         communityRating = communityRating,
         officialRating = officialRating,

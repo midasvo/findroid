@@ -20,6 +20,7 @@ data class FindroidMovieDto(
     val productionYear: Int?,
     val endDate: LocalDateTime?,
     val chapters: List<FindroidChapter>?,
+    val genres: List<String>? = null,
 )
 
 fun FindroidMovie.toFindroidMovieDto(serverId: String? = null): FindroidMovieDto {
@@ -37,5 +38,6 @@ fun FindroidMovie.toFindroidMovieDto(serverId: String? = null): FindroidMovieDto
         productionYear = productionYear,
         endDate = endDate,
         chapters = chapters,
+        genres = genres,
     )
 }

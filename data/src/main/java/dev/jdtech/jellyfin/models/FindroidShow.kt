@@ -73,7 +73,7 @@ fun FindroidShowDto.toFindroidShow(database: ServerDatabaseDao, userId: UUID): F
         unplayedItemCount = null,
         sources = emptyList(),
         seasons = emptyList(),
-        genres = emptyList(),
+        genres = genres ?: emptyList(),
         people = emptyList(),
         runtimeTicks = runtimeTicks,
         communityRating = communityRating,
