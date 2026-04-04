@@ -460,14 +460,15 @@ constructor(
                     .setTrackTypeDisabled(trackType, true)
                     .build()
         } else {
+            val filteredGroups = player.currentTracks.groups
+                .filter { it.type == trackType && it.isSupported }
+            val group = filteredGroups.getOrNull(index) ?: return
             player.trackSelectionParameters =
                 player.trackSelectionParameters
                     .buildUpon()
                     .setOverrideForType(
                         TrackSelectionOverride(
-                            player.currentTracks.groups
-                                .filter { it.type == trackType && it.isSupported }[index]
-                                .mediaTrackGroup,
+                            group.mediaTrackGroup,
                             0,
                         )
                     )
