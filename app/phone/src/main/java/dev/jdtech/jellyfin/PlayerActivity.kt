@@ -233,6 +233,9 @@ class PlayerActivity : BasePlayerActivity() {
                                     } catch (_: IllegalArgumentException) {}
                                 }
                             }
+                            is PlayerEvents.PlayerError -> {
+                                // Error is already logged in PlayerViewModel
+                            }
                         }
                     }
                 }
