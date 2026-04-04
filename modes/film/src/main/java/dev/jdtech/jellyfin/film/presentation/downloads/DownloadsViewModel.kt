@@ -84,11 +84,24 @@ constructor(
                 val activeDownloads = loadActiveDownloads()
                 val storageInfo = calculateStorageInfo()
 
+                // Build queued downloads from the shared queue manager
+                val activeIds = activeDownloads.map { it.item.id }.toSet()
+                val queuedDownloads = downloadQueueManager.queuedItems.value
+                    .filter { it.id !in activeIds && it.id !in dismissedIds }
+                    .map { item ->
+                        ActiveDownload(
+                            item = item,
+                            progress = DownloadProgress(status = DownloadStatus.QUEUED),
+                            downloadId = null,
+                        )
+                    }
+
                 _state.emit(
                     _state.value.copy(
                         isLoading = false,
                         sections = sections,
                         activeDownloads = activeDownloads,
+                        queuedDownloads = queuedDownloads,
                         storageUsedBytes = storageInfo.first,
                         storageFreeBytes = storageInfo.second,
                         storageIsExternal = storageInfo.third,

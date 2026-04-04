@@ -110,55 +110,64 @@ constructor(
         // Cancel any existing queue processor
         downloadQueueJob?.cancel()
         downloadQueueJob = viewModelScope.launch(Dispatchers.IO) {
-            val maxConcurrent =
-                appPreferences.getValue(appPreferences.maxConcurrentDownloads)
-            val pending = ArrayDeque(episodes)
+            try {
+                val maxConcurrent =
+                    appPreferences.getValue(appPreferences.maxConcurrentDownloads)
+                val pending = ArrayDeque(episodes)
 
-            // Track active downloads: episodeId -> downloadId
-            val active = mutableMapOf<UUID, Long>()
+                // Track active downloads: episodeId -> downloadId
+                val active = mutableMapOf<UUID, Long>()
 
-            // Publish pending queue for the Downloads Queue tab
-            downloadQueueManager.setQueuedItems(pending.toList())
+                Timber.d("Download queue: ${pending.size} episodes, maxConcurrent=$maxConcurrent")
 
-            // Fill initial slots
-            fillSlots(pending, active, maxConcurrent)
-            downloadQueueManager.setQueuedItems(pending.toList())
-            reloadSeasonState()
+                // Publish pending queue for the Downloads Queue tab
+                downloadQueueManager.setQueuedItems(pending.toList())
 
-            // Poll until everything is done
-            while (active.isNotEmpty() || pending.isNotEmpty()) {
-                delay(1000L)
+                // Fill initial slots
+                val initialStarted = fillSlots(pending, active, maxConcurrent)
+                Timber.d("Download queue: started $initialStarted, active=${active.size}, pending=${pending.size}")
+                downloadQueueManager.setQueuedItems(pending.toList())
+                reloadSeasonState()
 
-                // Check which downloads finished
-                val completed = mutableListOf<UUID>()
-                for ((episodeId, downloadId) in active) {
-                    val (status, _) = downloader.getProgress(downloadId)
-                    if (status != DownloadManager.STATUS_PENDING &&
-                        status != DownloadManager.STATUS_RUNNING &&
-                        status != DownloadManager.STATUS_PAUSED
-                    ) {
-                        completed.add(episodeId)
+                // Poll until everything is done
+                while (active.isNotEmpty() || pending.isNotEmpty()) {
+                    delay(1000L)
+
+                    // Check which downloads finished
+                    val completed = mutableListOf<UUID>()
+                    for ((episodeId, downloadId) in active) {
+                        val (status, _) = downloader.getProgress(downloadId)
+                        Timber.d("Download queue: poll episodeId=$episodeId downloadId=$downloadId status=$status")
+                        if (status != DownloadManager.STATUS_PENDING &&
+                            status != DownloadManager.STATUS_RUNNING &&
+                            status != DownloadManager.STATUS_PAUSED
+                        ) {
+                            completed.add(episodeId)
+                        }
                     }
-                }
 
-                if (completed.isNotEmpty()) {
-                    for (id in completed) active.remove(id)
+                    if (completed.isNotEmpty()) {
+                        Timber.d("Download queue: ${completed.size} completed, filling slots")
+                        for (id in completed) active.remove(id)
 
-                    // Start next downloads to fill freed slots
-                    val started = fillSlots(pending, active, maxConcurrent)
-                    if (started > 0 || completed.isNotEmpty()) {
+                        // Start next downloads to fill freed slots
+                        val started = fillSlots(pending, active, maxConcurrent)
+                        Timber.d("Download queue: started $started new, active=${active.size}, pending=${pending.size}")
                         downloadQueueManager.setQueuedItems(pending.toList())
                         reloadSeasonState()
                     }
+
+                    // Update progress UI
+                    updateProgressFromDownloadManager(active)
                 }
 
-                // Update progress UI
-                updateProgressFromDownloadManager(active)
+                Timber.d("Download queue: all done")
+                downloadQueueManager.clear()
+                reloadSeasonState()
+            } catch (e: Exception) {
+                Timber.e(e, "Download queue coroutine failed")
+                downloadQueueManager.clear()
             }
-
-            // All done — clear queue
-            downloadQueueManager.clear()
-            reloadSeasonState()
         }
     }
 
