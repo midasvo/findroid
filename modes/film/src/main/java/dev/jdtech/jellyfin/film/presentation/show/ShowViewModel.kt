@@ -15,6 +15,7 @@ import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -81,11 +82,15 @@ constructor(
 
     fun downloadSeasons(seasonIds: Set<UUID>) {
         viewModelScope.launch(Dispatchers.IO) {
+            val maxConcurrent =
+                appPreferences.getValue(appPreferences.maxConcurrentDownloads)
             val storageIndex =
                 appPreferences.getValue(appPreferences.downloadStorageIndex)?.toIntOrNull() ?: 0
             var started = 0
             var skipped = 0
             var failed = 0
+            var activeCount = 0
+
             for (seasonId in seasonIds) {
                 val episodes = repository.getEpisodes(seriesId = showId, seasonId = seasonId)
                 for (episode in episodes) {
@@ -93,8 +98,14 @@ constructor(
                         skipped++
                         continue
                     }
-                    // The episode list from getEpisodes() may not include mediaSources,
-                    // so fetch them separately for each episode we want to download.
+
+                    // Wait for a slot to open up
+                    while (activeCount >= maxConcurrent) {
+                        delay(2000L)
+                        // Recount active downloads
+                        activeCount = countActiveDownloads()
+                    }
+
                     val sources =
                         try {
                             repository.getMediaSources(episode.id)
@@ -115,6 +126,7 @@ constructor(
                         )
                     if (downloadId != -1L) {
                         started++
+                        activeCount++
                     } else {
                         failed++
                     }
@@ -122,6 +134,26 @@ constructor(
             }
             eventsChannel.send(ShowEvent.DownloadResult(started, skipped, failed))
             loadShow(showId)
+        }
+    }
+
+    private suspend fun countActiveDownloads(): Int {
+        return withContext(Dispatchers.IO) {
+            val allSeasons = _state.value.seasons
+            var count = 0
+            for (season in allSeasons) {
+                val episodes = repository.getEpisodes(
+                    seriesId = showId,
+                    seasonId = season.id,
+                    offline = true,
+                )
+                count += episodes.count { episode ->
+                    episode.sources.any {
+                        it.type == FindroidSourceType.LOCAL && it.path.endsWith(".download")
+                    }
+                }
+            }
+            count
         }
     }
 

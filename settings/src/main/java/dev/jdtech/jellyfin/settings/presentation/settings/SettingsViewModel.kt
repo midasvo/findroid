@@ -614,6 +614,11 @@ class SettingsViewModel @Inject constructor(
                                                     backendPreference = appPreferences.downloadStorageIndex,
                                                     dynamicOptions = emptyList(), // filled in loadPreferences
                                                 ),
+                                                PreferenceIntInput(
+                                                    nameStringResource = R.string.pref_download_max_concurrent,
+                                                    backendPreference =
+                                                        appPreferences.maxConcurrentDownloads,
+                                                ),
                                             )
                                     ),
                                 ),

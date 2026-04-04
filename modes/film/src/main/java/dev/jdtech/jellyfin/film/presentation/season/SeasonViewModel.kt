@@ -44,6 +44,10 @@ constructor(
     private val handler = Handler(Looper.getMainLooper())
     private var isPolling = false
 
+    // Download queue: episodes waiting to be started
+    private val downloadQueue = ArrayDeque<FindroidEpisode>()
+    private var activeDownloadCount = 0
+
     fun loadSeason(seasonId: UUID) {
         this.seasonId = seasonId
         viewModelScope.launch {
@@ -71,44 +75,82 @@ constructor(
 
     fun downloadSeason() {
         viewModelScope.launch(Dispatchers.IO) {
-            val storageIndex =
-                appPreferences.getValue(appPreferences.downloadStorageIndex)?.toIntOrNull() ?: 0
-            var started = 0
+            val maxConcurrent =
+                appPreferences.getValue(appPreferences.maxConcurrentDownloads)
+            val toDownload = mutableListOf<FindroidEpisode>()
             var skipped = 0
-            var failed = 0
             for (episode in _state.value.episodes) {
                 if (episode.isDownloaded()) {
                     skipped++
-                    continue
+                } else {
+                    toDownload.add(episode)
                 }
-                // The episode list from getEpisodes() may not include mediaSources,
-                // so fetch them separately for each episode we want to download.
-                val sources =
-                    try {
-                        repository.getMediaSources(episode.id)
-                    } catch (_: Exception) {
-                        failed++
-                        continue
-                    }
-                val sourceId = sources.firstOrNull()?.id
-                if (sourceId == null) {
-                    failed++
-                    continue
-                }
-                val (downloadId, _) =
-                    downloader.downloadItem(
-                        item = episode,
-                        sourceId = sourceId,
-                        storageIndex = storageIndex,
-                    )
-                if (downloadId != -1L) {
+            }
+
+            if (toDownload.isEmpty()) {
+                eventsChannel.send(SeasonEvent.DownloadResult(0, skipped, 0))
+                return@launch
+            }
+
+            // Start first batch, queue the rest
+            val firstBatch = toDownload.take(maxConcurrent)
+            val rest = toDownload.drop(maxConcurrent)
+            downloadQueue.clear()
+            downloadQueue.addAll(rest)
+
+            var started = 0
+            var failed = 0
+            activeDownloadCount = 0
+            for (episode in firstBatch) {
+                val result = startEpisodeDownload(episode)
+                if (result) {
                     started++
+                    activeDownloadCount++
                 } else {
                     failed++
                 }
             }
-            eventsChannel.send(SeasonEvent.DownloadResult(started, skipped, failed))
+            eventsChannel.send(
+                SeasonEvent.DownloadResult(
+                    started = started + downloadQueue.size,
+                    skipped = skipped,
+                    failed = failed,
+                )
+            )
             // Reload episodes to pick up new LOCAL sources, then start polling
+            loadSeason(seasonId)
+        }
+    }
+
+    private suspend fun startEpisodeDownload(episode: FindroidEpisode): Boolean {
+        val storageIndex =
+            appPreferences.getValue(appPreferences.downloadStorageIndex)?.toIntOrNull() ?: 0
+        val sources =
+            try {
+                repository.getMediaSources(episode.id)
+            } catch (_: Exception) {
+                return false
+            }
+        val sourceId = sources.firstOrNull()?.id ?: return false
+        val (downloadId, _) =
+            downloader.downloadItem(
+                item = episode,
+                sourceId = sourceId,
+                storageIndex = storageIndex,
+            )
+        return downloadId != -1L
+    }
+
+    private fun startNextQueuedDownload() {
+        if (downloadQueue.isEmpty()) return
+        val next = downloadQueue.removeFirst()
+        viewModelScope.launch(Dispatchers.IO) {
+            if (startEpisodeDownload(next)) {
+                activeDownloadCount++
+            } else {
+                // Try the next one if this one failed
+                startNextQueuedDownload()
+            }
             loadSeason(seasonId)
         }
     }
@@ -208,12 +250,28 @@ constructor(
                             _state.value.copy(episodeDownloadProgress = progressMap)
                         )
 
-                        if (hasActive) {
+                        if (hasActive || downloadQueue.isNotEmpty()) {
                             handler.postDelayed(self, 1000L)
                         } else {
                             isPolling = false
+                            activeDownloadCount = 0
                             // Reload to get final state (renamed files etc.)
                             loadSeason(seasonId)
+                        }
+
+                        // Start queued downloads as active ones complete
+                        if (downloadQueue.isNotEmpty()) {
+                            val maxConcurrent =
+                                appPreferences.getValue(appPreferences.maxConcurrentDownloads)
+                            val currentActive =
+                                progressMap.values.count {
+                                    it.status == DownloadStatus.PENDING ||
+                                        it.status == DownloadStatus.DOWNLOADING
+                                }
+                            val slotsAvailable = maxConcurrent - currentActive
+                            repeat(slotsAvailable.coerceAtLeast(0)) {
+                                startNextQueuedDownload()
+                            }
                         }
                     }
                 }
