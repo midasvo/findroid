@@ -67,13 +67,17 @@ fun ActiveDownloadCard(
     val item = activeDownload.item
     val itemName =
         when (item) {
-            is FindroidEpisode ->
-                stringResource(
-                    CoreR.string.episode_name_extended,
-                    item.parentIndexNumber,
-                    item.indexNumber,
-                    item.name,
-                )
+            is FindroidEpisode -> {
+                val episodeLabel =
+                    stringResource(
+                        CoreR.string.episode_name_extended,
+                        item.parentIndexNumber,
+                        item.indexNumber,
+                        item.name,
+                    )
+                if (item.seriesName.isNotEmpty()) "${item.seriesName} - $episodeLabel"
+                else episodeLabel
+            }
             else -> item.name
         }
 
