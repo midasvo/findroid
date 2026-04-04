@@ -26,6 +26,7 @@ import dev.jdtech.jellyfin.repository.JellyfinRepository
 import dev.jdtech.jellyfin.settings.domain.AppPreferences
 import dev.jdtech.jellyfin.utils.Downloader
 import java.io.File
+import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -49,9 +50,11 @@ constructor(
     private val handler = Handler(Looper.getMainLooper())
     private var isPolling = false
     private var completionPollCount = 0
+    private val dismissedIds = mutableSetOf<UUID>()
 
     fun loadItems() {
         viewModelScope.launch {
+            dismissedIds.clear()
             _state.emit(_state.value.copy(isLoading = true, error = null))
 
             try {
@@ -91,6 +94,7 @@ constructor(
 
     fun dismissCompletedDownload(activeDownload: ActiveDownload) {
         viewModelScope.launch {
+            dismissedIds.add(activeDownload.item.id)
             val updated = _state.value.activeDownloads.filter { it.item.id != activeDownload.item.id }
             _state.emit(_state.value.copy(activeDownloads = updated))
             if (updated.none {
@@ -128,6 +132,8 @@ constructor(
             val userId = repository.getUserId()
             val activeSources = database.getActiveDownloadSources()
             activeSources.mapNotNull { source ->
+                if (source.itemId in dismissedIds) return@mapNotNull null
+
                 val item: FindroidItem? =
                     try {
                         database.getMovie(source.itemId).toFindroidMovie(database, userId)
@@ -148,7 +154,7 @@ constructor(
                         DownloadManager.STATUS_PAUSED -> DownloadStatus.PENDING
                         DownloadManager.STATUS_FAILED -> DownloadStatus.FAILED
                         DownloadManager.STATUS_SUCCESSFUL -> DownloadStatus.COMPLETED
-                        else -> DownloadStatus.PENDING
+                        else -> DownloadStatus.COMPLETED
                     }
                 ActiveDownload(
                     item = item,

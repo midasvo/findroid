@@ -241,6 +241,7 @@ constructor(
                         )
 
                         // Start queued downloads synchronously as slots free up
+                        var startedAny = false
                         val queueNotEmpty = queueMutex.withLock { downloadQueue.isNotEmpty() }
                         if (queueNotEmpty) {
                             val maxConcurrent =
@@ -252,7 +253,6 @@ constructor(
                                 }
                             val slotsAvailable =
                                 (maxConcurrent - currentActive).coerceAtLeast(0)
-                            var startedAny = false
                             repeat(slotsAvailable) {
                                 val next = queueMutex.withLock {
                                     if (downloadQueue.isEmpty()) return@repeat
@@ -286,7 +286,7 @@ constructor(
 
                         val queueStillNotEmpty =
                             queueMutex.withLock { downloadQueue.isNotEmpty() }
-                        if (hasActive || queueStillNotEmpty) {
+                        if (hasActive || queueStillNotEmpty || startedAny) {
                             handler.postDelayed(self, Constants.DOWNLOAD_POLL_INTERVAL_MS)
                         } else {
                             isPolling = false
