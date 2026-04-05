@@ -65,7 +65,7 @@ class DownloadReceiver : BroadcastReceiver() {
         val source = database.getSourceByDownloadId(id)
         if (source != null) {
             if (downloadStatus == DownloadManager.STATUS_SUCCESSFUL) {
-                val path = source.path.replace(".download", "")
+                val path = source.path.removeSuffix(".download")
                 if (renameFile(source.path, path)) {
                     database.setSourcePath(source.id, path)
                     Timber.d("Download complete, file at: $path")
@@ -85,7 +85,7 @@ class DownloadReceiver : BroadcastReceiver() {
         val mediaStream = database.getMediaStreamByDownloadId(id)
         if (mediaStream != null) {
             if (downloadStatus == DownloadManager.STATUS_SUCCESSFUL) {
-                val path = mediaStream.path.replace(".download", "")
+                val path = mediaStream.path.removeSuffix(".download")
                 if (renameFile(mediaStream.path, path)) {
                     database.setMediaStreamPath(mediaStream.id, path)
                 } else {
