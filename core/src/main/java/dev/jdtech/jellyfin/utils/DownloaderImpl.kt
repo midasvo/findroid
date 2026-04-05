@@ -107,9 +107,23 @@ class DownloaderImpl(
                     ),
                 )
             }
+            // For episodes the bare "name" is just the episode title — in the
+            // system notification that's ambiguous ("Pilot") across shows. Prefix
+            // with series + SxxExx so the user can tell downloads apart.
+            val notificationTitle =
+                if (item is FindroidEpisode) {
+                    val series = item.seriesName.takeIf { it.isNotBlank() }
+                    val code = "S%02dE%02d".format(item.parentIndexNumber, item.indexNumber)
+                    buildString {
+                        if (series != null) append(series).append(" · ")
+                        append(code).append(" · ").append(item.name)
+                    }
+                } else {
+                    item.name
+                }
             val request =
                 DownloadManager.Request(source.path.toUri())
-                    .setTitle(item.name)
+                    .setTitle(notificationTitle)
                     .setAllowedOverMetered(
                         appPreferences.getValue(appPreferences.downloadOverMobileData)
                     )
