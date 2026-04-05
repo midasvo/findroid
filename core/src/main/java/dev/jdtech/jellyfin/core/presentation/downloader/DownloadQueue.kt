@@ -489,6 +489,15 @@ constructor(
     private suspend fun startDownload(entry: Entry) {
         val storageIndex =
             appPreferences.getValue(appPreferences.downloadStorageIndex)?.toIntOrNull() ?: 0
+        // Drop the pending row *before* running setup. If the process dies
+        // mid-setup, restoreAll() on next launch would otherwise resurrect the
+        // pending entry and enqueue a duplicate DM job + duplicate source row
+        // on top of whatever partial state setup left behind.
+        try {
+            downloader.removePendingDownload(entry.id)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to drop persisted pending row for ${entry.item.name}")
+        }
         val (downloadId, errorText) =
             try {
                 downloader.downloadItem(item = entry.item, storageIndex = storageIndex)
@@ -499,15 +508,6 @@ constructor(
                 // generic localized string.
                 Pair(-1L, UiText.StringResource(CoreR.string.downloading_error))
             }
-
-        // At this point the download has either started or failed. Either way the
-        // pending-persistence row is no longer useful: the source is now tracked
-        // via the `sources` table (.download path) or the user sees a Failed entry.
-        try {
-            downloader.removePendingDownload(entry.id)
-        } catch (e: Exception) {
-            Timber.e(e, "Failed to drop persisted pending row for ${entry.item.name}")
-        }
 
         var orphaned = false
         mutex.withLock {
