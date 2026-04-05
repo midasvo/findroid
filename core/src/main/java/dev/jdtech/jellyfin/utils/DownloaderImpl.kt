@@ -38,7 +38,9 @@ import java.io.File
 import java.util.UUID
 import kotlin.Exception
 import kotlin.math.ceil
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withContext
 import timber.log.Timber
 
 class DownloaderImpl(
@@ -351,12 +353,12 @@ class DownloaderImpl(
         }
     }
 
-    override suspend fun savePendingDownload(item: FindroidItem) {
+    override suspend fun savePendingDownload(item: FindroidItem) = withContext(Dispatchers.IO) {
         val kind =
             when (item) {
                 is FindroidMovie -> "MOVIE"
                 is FindroidEpisode -> "EPISODE"
-                else -> return
+                else -> return@withContext
             }
         database.insertPendingDownload(
             dev.jdtech.jellyfin.models.PendingDownloadDto(
@@ -367,11 +369,11 @@ class DownloaderImpl(
         )
     }
 
-    override suspend fun removePendingDownload(itemId: UUID) {
+    override suspend fun removePendingDownload(itemId: UUID) = withContext(Dispatchers.IO) {
         database.deletePendingDownload(itemId)
     }
 
-    override suspend fun getPendingDownloads(): List<FindroidItem> {
+    override suspend fun getPendingDownloads(): List<FindroidItem> = withContext(Dispatchers.IO) {
         val pending = database.getPendingDownloads()
         val result = mutableListOf<FindroidItem>()
         for (row in pending) {
@@ -393,10 +395,10 @@ class DownloaderImpl(
                 database.deletePendingDownload(row.itemId)
             }
         }
-        return result
+        result
     }
 
-    override suspend fun getActiveDownloads(): List<Pair<FindroidItem, Long>> {
+    override suspend fun getActiveDownloads(): List<Pair<FindroidItem, Long>> = withContext(Dispatchers.IO) {
         val userId = jellyfinRepository.getUserId()
         val sources = database.getActiveDownloadSources()
         val result = mutableListOf<Pair<FindroidItem, Long>>()
@@ -414,7 +416,7 @@ class DownloaderImpl(
                 }
             if (item != null) result.add(item to downloadId)
         }
-        return result
+        result
     }
 
     private fun startImagesDownloader(item: FindroidItem) {
