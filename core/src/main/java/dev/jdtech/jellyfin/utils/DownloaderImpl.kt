@@ -227,6 +227,9 @@ class DownloaderImpl(
 
         val mediaStreams = database.getMediaStreamsBySourceId(source.id)
         for (mediaStream in mediaStreams) {
+            // Cancel any still-running DM job for this external stream before
+            // removing the DB row, otherwise we leak in-flight downloads.
+            mediaStream.downloadId?.let { downloadManager.remove(it) }
             File(mediaStream.path).delete()
         }
         database.deleteMediaStreamsBySourceId(source.id)
