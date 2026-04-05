@@ -173,7 +173,7 @@ fun ActiveDownloadCard(
                         FilledTonalIconButton(onClick = onDismissClick) {
                             Icon(
                                 painter = painterResource(CoreR.drawable.ic_check),
-                                contentDescription = null,
+                                contentDescription = stringResource(CoreR.string.dismiss_download),
                             )
                         }
                     }
@@ -189,7 +189,7 @@ fun ActiveDownloadCard(
                         FilledTonalIconButton(onClick = onCancelClick) {
                             Icon(
                                 painter = painterResource(CoreR.drawable.ic_x),
-                                contentDescription = null,
+                                contentDescription = stringResource(CoreR.string.cancel_download),
                             )
                         }
                     }

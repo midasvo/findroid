@@ -124,6 +124,7 @@
     <string name="no_queue_items">No active downloads</string>
     <string name="no_queue_items_hint">Items you download will show progress here</string>
     <string name="clear_completed">Clear completed</string>
+    <string name="dismiss_download">Dismiss download</string>
     <string name="retry_download">Retry download</string>
     <string name="storage_usage">%1$s used · %2$s free</string>
     <string name="storage_usage_location">%1$s · %2$s used · %3$s free</string>
