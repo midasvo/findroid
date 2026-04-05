@@ -65,6 +65,10 @@ class DownloaderImpl(
         sourceId: String,
         storageIndex: Int,
     ): Pair<Long, UiText?> = coroutineScope {
+        // Track the DM enqueue id so we can cancel it if anything after enqueue throws
+        // (e.g. DB insert fails). Without this the DM job would keep running with no
+        // DB row, writing to disk and consuming bandwidth indefinitely.
+        var enqueuedDownloadId: Long? = null
         try {
             val source =
                 jellyfinRepository.getMediaSources(item.id, true).first { it.id == sourceId }
@@ -138,7 +142,7 @@ class DownloaderImpl(
                         DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED
                     )
                     .setDestinationUri(path)
-            val downloadId = downloadManager.enqueue(request)
+            val downloadId = downloadManager.enqueue(request).also { enqueuedDownloadId = it }
 
             when (item) {
                 is FindroidMovie -> {
@@ -185,6 +189,15 @@ class DownloaderImpl(
             startImagesDownloader(item)
             return@coroutineScope Pair(downloadId, null)
         } catch (e: Exception) {
+            // Cancel the DM job first — deleteItem() only removes rows/files via the
+            // source DB row, which may not have been inserted yet.
+            enqueuedDownloadId?.let {
+                try {
+                    downloadManager.remove(it)
+                } catch (removeError: Exception) {
+                    Timber.e(removeError, "Failed to remove leaked DM job $it")
+                }
+            }
             try {
                 val source = jellyfinRepository.getMediaSources(item.id).first { it.id == sourceId }
                 deleteItem(item, source)
