@@ -78,6 +78,8 @@ fun DownloadsScreen(
         onItemClick = onItemClick,
         onCancelDownload = { viewModel.cancelDownload(it) },
         onDismissDownload = { viewModel.dismissCompletedDownload(it) },
+        onRetryDownload = { viewModel.retryDownload(it) },
+        onClearCompleted = { viewModel.clearCompleted() },
     )
 }
 
@@ -88,6 +90,8 @@ private fun DownloadsScreenLayout(
     onItemClick: (FindroidItem) -> Unit,
     onCancelDownload: (ActiveDownload) -> Unit,
     onDismissDownload: (ActiveDownload) -> Unit,
+    onRetryDownload: (ActiveDownload) -> Unit,
+    onClearCompleted: () -> Unit,
 ) {
     val context = LocalContext.current
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
@@ -149,6 +153,8 @@ private fun DownloadsScreenLayout(
                     state = state,
                     onCancelDownload = onCancelDownload,
                     onDismissDownload = onDismissDownload,
+                    onRetryDownload = onRetryDownload,
+                    onClearCompleted = onClearCompleted,
                 )
             }
         }
@@ -241,8 +247,10 @@ private fun QueueTabContent(
     state: DownloadsState,
     onCancelDownload: (ActiveDownload) -> Unit,
     onDismissDownload: (ActiveDownload) -> Unit,
+    onRetryDownload: (ActiveDownload) -> Unit,
+    onClearCompleted: () -> Unit,
 ) {
-    val allItems = state.activeDownloads + state.queuedDownloads
+    val allItems = state.queueItems
 
     if (allItems.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize()) {
@@ -259,6 +267,16 @@ private fun QueueTabContent(
             contentPadding = PaddingValues(all = MaterialTheme.spacings.default),
             verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacings.default),
         ) {
+            if (state.hasCompleted) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    androidx.compose.material3.TextButton(
+                        onClick = onClearCompleted,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(CoreR.string.clear_completed))
+                    }
+                }
+            }
             items(
                 items = allItems,
                 key = { it.item.id },
@@ -267,6 +285,7 @@ private fun QueueTabContent(
                     activeDownload = activeDownload,
                     onCancelClick = { onCancelDownload(activeDownload) },
                     onDismissClick = { onDismissDownload(activeDownload) },
+                    onRetryClick = { onRetryDownload(activeDownload) },
                 )
             }
         }
@@ -295,6 +314,8 @@ private fun DownloadsScreenLayoutPreview() {
             onItemClick = {},
             onCancelDownload = {},
             onDismissDownload = {},
+            onRetryDownload = {},
+            onClearCompleted = {},
         )
     }
 }
@@ -308,6 +329,8 @@ private fun DownloadsScreenLayoutEmptyPreview() {
             onItemClick = {},
             onCancelDownload = {},
             onDismissDownload = {},
+            onRetryDownload = {},
+            onClearCompleted = {},
         )
     }
 }

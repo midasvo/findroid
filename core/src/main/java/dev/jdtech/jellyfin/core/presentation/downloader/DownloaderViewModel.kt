@@ -1,19 +1,16 @@
 package dev.jdtech.jellyfin.core.presentation.downloader
 
 import android.app.DownloadManager
-import android.os.Handler
-import android.os.Looper
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dev.jdtech.jellyfin.core.Constants
 import dev.jdtech.jellyfin.models.FindroidItem
 import dev.jdtech.jellyfin.models.FindroidSourceType
 import dev.jdtech.jellyfin.models.isDownloading
-import dev.jdtech.jellyfin.settings.domain.AppPreferences
 import dev.jdtech.jellyfin.utils.Downloader
+import java.util.UUID
 import javax.inject.Inject
-import kotlinx.coroutines.Runnable
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,9 +18,11 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
 @HiltViewModel
-class DownloaderViewModel @Inject constructor(
+class DownloaderViewModel
+@Inject
+constructor(
     private val downloader: Downloader,
-    private val appPreferences: AppPreferences,
+    private val downloadQueue: DownloadQueue,
 ) : ViewModel() {
     private val _state = MutableStateFlow(DownloaderState())
     val state = _state.asStateFlow()
@@ -31,98 +30,85 @@ class DownloaderViewModel @Inject constructor(
     private val eventsChannel = Channel<DownloaderEvent>()
     val events = eventsChannel.receiveAsFlow()
 
-    var downloadId: Long? = null
-
-    private val handler = Handler(Looper.getMainLooper())
+    private var trackedItemId: UUID? = null
+    private var observerJob: Job? = null
+    private var wasCompleted = false
 
     fun update(item: FindroidItem) {
-        viewModelScope.launch {
-            if (item.isDownloading()) {
-                val source =
-                    item.sources.firstOrNull { it.type == FindroidSourceType.LOCAL }
-                        ?: return@launch
-                this@DownloaderViewModel.downloadId = source.downloadId
-                pollDownloadProgress(source.downloadId)
+        if (trackedItemId == item.id && observerJob?.isActive == true) return
+        trackedItemId = item.id
+        wasCompleted = false
+
+        // Restore if in-flight from a previous session
+        if (item.isDownloading()) {
+            val localSource = item.sources.firstOrNull { it.type == FindroidSourceType.LOCAL }
+            val dlId = localSource?.downloadId
+            if (dlId != null) {
+                viewModelScope.launch { downloadQueue.restore(item, dlId) }
             }
         }
+
+        startObserving(item.id)
+    }
+
+    private fun startObserving(itemId: UUID) {
+        observerJob?.cancel()
+        observerJob =
+            viewModelScope.launch {
+                downloadQueue.entries.collect { entries ->
+                    val entry = entries.firstOrNull { it.id == itemId }
+                    val newState =
+                        when (val s = entry?.state) {
+                            is DownloadQueue.EntryState.Pending ->
+                                DownloaderState(status = DownloadManager.STATUS_PENDING)
+                            is DownloadQueue.EntryState.Downloading ->
+                                DownloaderState(
+                                    status = DownloadManager.STATUS_RUNNING,
+                                    progress = entry.progress / 100f,
+                                )
+                            is DownloadQueue.EntryState.Completed ->
+                                DownloaderState(
+                                    status = DownloadManager.STATUS_SUCCESSFUL,
+                                    progress = 1f,
+                                )
+                            is DownloadQueue.EntryState.Failed ->
+                                DownloaderState(
+                                    status = DownloadManager.STATUS_FAILED,
+                                    errorText = s.error,
+                                )
+                            null -> DownloaderState()
+                        }
+                    if (
+                        newState.status == DownloadManager.STATUS_SUCCESSFUL && !wasCompleted
+                    ) {
+                        wasCompleted = true
+                        eventsChannel.trySend(DownloaderEvent.Successful)
+                    }
+                    _state.emit(newState)
+                }
+            }
     }
 
     private fun download(item: FindroidItem) {
-        viewModelScope.launch {
-            _state.emit(DownloaderState(status = DownloadManager.STATUS_PENDING))
-            val storageIndex =
-                appPreferences.getValue(appPreferences.downloadStorageIndex)?.toIntOrNull() ?: 0
-            val source = item.sources.firstOrNull() ?: run {
-                _state.emit(DownloaderState(status = DownloadManager.STATUS_FAILED))
-                return@launch
-            }
-            val (downloadId, uiText) =
-                downloader.downloadItem(
-                    item = item,
-                    sourceId = source.id,
-                    storageIndex = storageIndex,
-                )
-            if (downloadId != -1L) {
-                this@DownloaderViewModel.downloadId = downloadId
-                pollDownloadProgress(downloadId)
-            } else {
-                _state.emit(
-                    DownloaderState(status = DownloadManager.STATUS_FAILED, errorText = uiText)
-                )
-            }
-        }
+        trackedItemId = item.id
+        wasCompleted = false
+        viewModelScope.launch { downloadQueue.enqueue(item) }
+        startObserving(item.id)
     }
 
     private fun cancelDownload(item: FindroidItem) {
-        viewModelScope.launch {
-            // Stop progress polling
-            handler.removeCallbacksAndMessages(null)
-
-            // Cancel the download
-            downloadId?.let { downloader.cancelDownload(item = item, downloadId = it) }
-
-            // Emit empty DownloadState
-            _state.emit(DownloaderState())
-        }
+        downloadQueue.remove(item.id)
     }
 
     private fun deleteDownload(item: FindroidItem) {
         viewModelScope.launch {
-            val source = item.sources.firstOrNull { it.type == FindroidSourceType.LOCAL }
-                ?: return@launch
-            downloader.deleteItem(
-                item = item,
-                source = source,
-            )
+            // Ensure it's not tracked as an active download anymore
+            downloadQueue.remove(item.id)
+            val source =
+                item.sources.firstOrNull { it.type == FindroidSourceType.LOCAL } ?: return@launch
+            downloader.deleteItem(item = item, source = source)
             eventsChannel.send(DownloaderEvent.Deleted)
         }
-    }
-
-    private fun pollDownloadProgress(downloadId: Long?) {
-        handler.removeCallbacksAndMessages(null)
-        val downloadProgressRunnable =
-            object : Runnable {
-                override fun run() {
-                    viewModelScope.launch {
-                        val (status, progress) = downloader.getProgress(downloadId)
-                        _state.emit(
-                            DownloaderState(
-                                status = status,
-                                progress = progress.coerceAtLeast(0) / 100f,
-                            )
-                        )
-                    }
-
-                    if (_state.value.status == DownloadManager.STATUS_SUCCESSFUL) {
-                        eventsChannel.trySend(DownloaderEvent.Successful)
-                    }
-
-                    if (_state.value.isDownloading) {
-                        handler.postDelayed(this, Constants.DOWNLOAD_POLL_INTERVAL_MS)
-                    }
-                }
-            }
-        handler.post(downloadProgressRunnable)
     }
 
     fun onAction(action: DownloaderAction) {
@@ -135,7 +121,7 @@ class DownloaderViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
-        handler.removeCallbacksAndMessages(null)
+        observerJob?.cancel()
         eventsChannel.close()
     }
 }

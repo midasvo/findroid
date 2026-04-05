@@ -171,6 +171,25 @@ class DownloaderImpl(
         }
     }
 
+    override suspend fun downloadItem(
+        item: FindroidItem,
+        storageIndex: Int,
+    ): Pair<Long, UiText?> {
+        val sources = try {
+            jellyfinRepository.getMediaSources(item.id, true)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to resolve media sources for ${item.name}")
+            return Pair(
+                -1,
+                e.message?.let { UiText.DynamicString(it) }
+                    ?: UiText.StringResource(CoreR.string.unknown_error),
+            )
+        }
+        val sourceId = sources.firstOrNull()?.id
+            ?: return Pair(-1, UiText.StringResource(CoreR.string.unknown_error))
+        return downloadItem(item = item, sourceId = sourceId, storageIndex = storageIndex)
+    }
+
     override suspend fun cancelDownload(item: FindroidItem, downloadId: Long) {
         val source =
             database.getSourceByDownloadId(downloadId)?.toFindroidSource(database) ?: return

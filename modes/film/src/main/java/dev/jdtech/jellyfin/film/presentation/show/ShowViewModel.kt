@@ -3,19 +3,18 @@ package dev.jdtech.jellyfin.film.presentation.show
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.jdtech.jellyfin.core.presentation.downloader.DownloadQueue
 import dev.jdtech.jellyfin.models.FindroidEpisode
 import dev.jdtech.jellyfin.models.FindroidItemPerson
 import dev.jdtech.jellyfin.models.FindroidShow
 import dev.jdtech.jellyfin.models.FindroidSourceType
 import dev.jdtech.jellyfin.models.isDownloaded
 import dev.jdtech.jellyfin.repository.JellyfinRepository
-import dev.jdtech.jellyfin.settings.domain.AppPreferences
 import dev.jdtech.jellyfin.utils.Downloader
 import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -30,7 +29,7 @@ class ShowViewModel
 constructor(
     private val repository: JellyfinRepository,
     private val downloader: Downloader,
-    private val appPreferences: AppPreferences,
+    private val downloadQueue: DownloadQueue,
 ) : ViewModel() {
     private val _state = MutableStateFlow(ShowState())
     val state = _state.asStateFlow()
@@ -83,78 +82,17 @@ constructor(
 
     fun downloadSeasons(seasonIds: Set<UUID>) {
         viewModelScope.launch(Dispatchers.IO) {
-            val maxConcurrent =
-                appPreferences.getValue(appPreferences.maxConcurrentDownloads)
-            val storageIndex =
-                appPreferences.getValue(appPreferences.downloadStorageIndex)?.toIntOrNull() ?: 0
-            var started = 0
+            val toQueue = mutableListOf<FindroidEpisode>()
             var skipped = 0
-            var failed = 0
-            var activeCount = 0
-
             for (seasonId in seasonIds) {
                 val episodes = repository.getEpisodes(seriesId = showId, seasonId = seasonId)
                 for (episode in episodes) {
-                    if (episode.isDownloaded()) {
-                        skipped++
-                        continue
-                    }
-
-                    // Wait for a slot to open up
-                    while (activeCount >= maxConcurrent) {
-                        delay(2000L)
-                        // Recount active downloads
-                        activeCount = countActiveDownloads()
-                    }
-
-                    val sources =
-                        try {
-                            repository.getMediaSources(episode.id)
-                        } catch (_: Exception) {
-                            failed++
-                            continue
-                        }
-                    val sourceId = sources.firstOrNull()?.id
-                    if (sourceId == null) {
-                        failed++
-                        continue
-                    }
-                    val (downloadId, _) =
-                        downloader.downloadItem(
-                            item = episode,
-                            sourceId = sourceId,
-                            storageIndex = storageIndex,
-                        )
-                    if (downloadId != -1L) {
-                        started++
-                        activeCount++
-                    } else {
-                        failed++
-                    }
+                    if (episode.isDownloaded()) skipped++ else toQueue.add(episode)
                 }
             }
-            eventsChannel.send(ShowEvent.DownloadResult(started, skipped, failed))
+            downloadQueue.enqueueAll(toQueue)
+            eventsChannel.send(ShowEvent.DownloadResult(toQueue.size, skipped, 0))
             loadShow(showId)
-        }
-    }
-
-    private suspend fun countActiveDownloads(): Int {
-        return withContext(Dispatchers.IO) {
-            val allSeasons = _state.value.seasons
-            var count = 0
-            for (season in allSeasons) {
-                val episodes = repository.getEpisodes(
-                    seriesId = showId,
-                    seasonId = season.id,
-                    offline = true,
-                )
-                count += episodes.count { episode ->
-                    episode.sources.any {
-                        it.type == FindroidSourceType.LOCAL && it.path.endsWith(".download")
-                    }
-                }
-            }
-            count
         }
     }
 

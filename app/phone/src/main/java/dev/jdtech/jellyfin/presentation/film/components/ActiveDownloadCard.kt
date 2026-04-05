@@ -42,6 +42,7 @@ fun ActiveDownloadCard(
     activeDownload: ActiveDownload,
     onCancelClick: () -> Unit,
     onDismissClick: () -> Unit,
+    onRetryClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val progress = activeDownload.progress
@@ -139,17 +140,26 @@ fun ActiveDownloadCard(
                     }
                 }
             }
-            if (progress.status != DownloadStatus.QUEUED) {
-                Spacer(Modifier.width(MaterialTheme.spacings.small))
-                CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
-                    if (isCompleted) {
+            Spacer(Modifier.width(MaterialTheme.spacings.small))
+            CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
+                when (progress.status) {
+                    DownloadStatus.COMPLETED -> {
                         FilledTonalIconButton(onClick = onDismissClick) {
                             Icon(
                                 painter = painterResource(CoreR.drawable.ic_check),
                                 contentDescription = null,
                             )
                         }
-                    } else {
+                    }
+                    DownloadStatus.FAILED -> {
+                        FilledTonalIconButton(onClick = onRetryClick) {
+                            Icon(
+                                painter = painterResource(CoreR.drawable.ic_download),
+                                contentDescription = stringResource(CoreR.string.retry_download),
+                            )
+                        }
+                    }
+                    else -> {
                         FilledTonalIconButton(onClick = onCancelClick) {
                             Icon(
                                 painter = painterResource(CoreR.drawable.ic_x),

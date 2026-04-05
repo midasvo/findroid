@@ -11,6 +11,15 @@ interface Downloader {
         storageIndex: Int = 0,
     ): Pair<Long, UiText?>
 
+    /**
+     * Resolves the first available media source for the item and starts the download.
+     * Returns (downloadId, null) on success or (-1L, errorText) on failure.
+     */
+    suspend fun downloadItem(
+        item: FindroidItem,
+        storageIndex: Int = 0,
+    ): Pair<Long, UiText?>
+
     suspend fun cancelDownload(item: FindroidItem, downloadId: Long)
 
     suspend fun deleteItem(item: FindroidItem, source: FindroidSource)

@@ -3,7 +3,6 @@ package dev.jdtech.jellyfin.film.presentation.downloads
 import dev.jdtech.jellyfin.core.presentation.downloader.DownloadProgress
 import dev.jdtech.jellyfin.models.CollectionSection
 import dev.jdtech.jellyfin.models.FindroidItem
-import java.util.UUID
 
 data class ActiveDownload(
     val item: FindroidItem,
@@ -12,8 +11,8 @@ data class ActiveDownload(
 )
 
 data class DownloadsState(
-    val activeDownloads: List<ActiveDownload> = emptyList(),
-    val queuedDownloads: List<ActiveDownload> = emptyList(),
+    val queueItems: List<ActiveDownload> = emptyList(),
+    val hasCompleted: Boolean = false,
     val sections: List<CollectionSection> = emptyList(),
     val storageUsedBytes: Long = 0L,
     val storageFreeBytes: Long = 0L,
