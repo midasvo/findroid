@@ -38,6 +38,7 @@ import dev.jdtech.jellyfin.models.FindroidShow
 import dev.jdtech.jellyfin.models.FindroidSourceType
 import dev.jdtech.jellyfin.models.isDownloaded
 import dev.jdtech.jellyfin.presentation.theme.FindroidTheme
+import dev.jdtech.jellyfin.presentation.utils.LocalOfflineMode
 import dev.jdtech.jellyfin.presentation.theme.spacings
 
 @Composable
@@ -57,6 +58,7 @@ fun ItemButtonsBar(
     isDownloaded: Boolean = item.isDownloaded(),
 ) {
     val context = LocalContext.current
+    val isOfflineMode = LocalOfflineMode.current
     val windowSizeClass = currentWindowAdaptiveInfo().windowSizeClass
 
     val trailerUri =
@@ -162,7 +164,7 @@ fun ItemButtonsBar(
                                 contentDescription = stringResource(CoreR.string.delete_download),
                             )
                         }
-                    } else if (canDownload) {
+                    } else if (canDownload && !isOfflineMode) {
                         FilledTonalIconButton(onClick = onDownloadClick) {
                             Icon(
                                 painter = painterResource(CoreR.drawable.ic_download),
