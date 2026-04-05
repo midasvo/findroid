@@ -88,12 +88,24 @@ constructor(
 
     fun downloadSeasons(seasonIds: Set<UUID>) {
         viewModelScope.launch(Dispatchers.IO) {
+            // Episodes already in flight count as skipped so the toast count
+            // matches what actually got added to the queue.
+            val liveQueuedIds =
+                downloadQueue.entries.value
+                    .filter {
+                        it.state is DownloadQueue.EntryState.Pending ||
+                            it.state is DownloadQueue.EntryState.Downloading ||
+                            it.state is DownloadQueue.EntryState.Paused
+                    }
+                    .map { it.id }
+                    .toSet()
             val toQueue = mutableListOf<FindroidEpisode>()
             var skipped = 0
             for (seasonId in seasonIds) {
                 val episodes = repository.getEpisodes(seriesId = showId, seasonId = seasonId)
                 for (episode in episodes) {
-                    if (episode.isDownloaded()) skipped++ else toQueue.add(episode)
+                    if (episode.isDownloaded() || episode.id in liveQueuedIds) skipped++
+                    else toQueue.add(episode)
                 }
             }
             downloadQueue.enqueueAll(toQueue)

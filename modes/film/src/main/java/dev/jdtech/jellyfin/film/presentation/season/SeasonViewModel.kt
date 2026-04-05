@@ -101,10 +101,23 @@ constructor(
 
     fun downloadSeason() {
         viewModelScope.launch(Dispatchers.IO) {
+            // An episode already enqueued (pending/downloading/paused) is "in
+            // progress" from the user's perspective, so count it as skipped rather
+            // than re-enqueuing. enqueueAll dedupes too, but without this the
+            // "Started N downloads" toast would overstate the count.
+            val liveQueuedIds =
+                downloadQueue.entries.value
+                    .filter {
+                        it.state is DownloadQueue.EntryState.Pending ||
+                            it.state is DownloadQueue.EntryState.Downloading ||
+                            it.state is DownloadQueue.EntryState.Paused
+                    }
+                    .map { it.id }
+                    .toSet()
             val toQueue = mutableListOf<FindroidEpisode>()
             var skipped = 0
             for (episode in _state.value.episodes) {
-                if (episode.isDownloaded()) {
+                if (episode.isDownloaded() || episode.id in liveQueuedIds) {
                     skipped++
                 } else {
                     toQueue.add(episode)
