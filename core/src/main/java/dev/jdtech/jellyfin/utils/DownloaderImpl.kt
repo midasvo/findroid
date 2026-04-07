@@ -97,7 +97,9 @@ class DownloaderImpl(
                 -1,
                 UiText.StringResource(CoreR.string.storage_unavailable),
             )
-            val destFile = File(storageLocation, "downloads/${item.id}.${source.id}.download")
+            val extension = guessExtension(source.path)
+            val relativePath = buildDownloadPath(item, source.id, extension)
+            val destFile = File(storageLocation, "downloads/$relativePath.download")
             destFile.parentFile?.mkdirs()
             // DownloadManager refuses to enqueue if the destination exists. A leftover
             // .download file from a previous failed/cancelled attempt would block the
@@ -254,7 +256,9 @@ class DownloaderImpl(
         }
 
         database.deleteSource(source.id)
-        File(source.path).delete()
+        val sourceFile = File(source.path)
+        sourceFile.delete()
+        pruneEmptyParents(sourceFile)
 
         val mediaStreams = database.getMediaStreamsBySourceId(source.id)
         for (mediaStream in mediaStreams) {
@@ -269,6 +273,18 @@ class DownloaderImpl(
 
         File(context.filesDir, "trickplay/${item.id}").deleteRecursively()
         File(context.filesDir, "images/${item.id}").deleteRecursively()
+    }
+
+    /**
+     * Walks up the directory tree and removes empty directories until we hit
+     * the `downloads/` root or a non-empty directory.
+     */
+    private fun pruneEmptyParents(file: File) {
+        var dir = file.parentFile ?: return
+        while (dir.name != "downloads" && dir.listFiles()?.isEmpty() == true) {
+            dir.delete()
+            dir = dir.parentFile ?: return
+        }
     }
 
     override suspend fun getProgress(downloadId: Long?): Downloader.Progress {
@@ -358,9 +374,11 @@ class DownloaderImpl(
         downloadsDir.mkdirs()
         for (mediaStream in source.mediaStreams.filter { it.isExternal }) {
             val id = UUID.randomUUID()
+            val streamExt = mediaStream.path?.substringAfterLast('.', "")
+                ?.takeIf { it.length in 1..5 } ?: "sub"
             val streamPath =
                 Uri.fromFile(
-                    File(downloadsDir, "${item.id}.${source.id}.$id.download")
+                    File(downloadsDir, "${sanitize(item.name)}.${source.id}.$id.$streamExt.download")
                 )
             try {
                 database.insertMediaStream(
@@ -602,6 +620,47 @@ class DownloaderImpl(
                 Timber.w(e, "Failed to delete orphan item ${item.name}")
             }
         }
+    }
+
+    /**
+     * Builds a Plex-style relative path for a download.
+     *
+     * Movies:  `Movie Name (2024)/Movie Name (2024).mkv`
+     * Episodes: `Series Name/S01/S01E05 - Episode Name.mkv`
+     */
+    private fun buildDownloadPath(
+        item: FindroidItem,
+        sourceId: String,
+        extension: String,
+    ): String {
+        return when (item) {
+            is FindroidEpisode -> {
+                val series = sanitize(item.seriesName.ifBlank { "Unknown Series" })
+                val sNum = "S%02d".format(item.parentIndexNumber)
+                val eNum = "E%02d".format(item.indexNumber)
+                val epName = sanitize(item.name)
+                "$series/$sNum/$sNum$eNum - $epName.$extension"
+            }
+            is FindroidMovie -> {
+                val year = item.productionYear
+                val title = sanitize(item.name)
+                val folder = if (year != null) "$title ($year)" else title
+                "$folder/$folder.$extension"
+            }
+            else -> "${item.id}.$sourceId.$extension"
+        }
+    }
+
+    /** Strips characters that are illegal in FAT32/exFAT/NTFS filenames. */
+    private fun sanitize(name: String): String =
+        name.replace(Regex("[\\\\/:*?\"<>|]"), "").trim().ifEmpty { "Unknown" }
+
+    /** Extracts the file extension from a stream URL, falling back to "mkv". */
+    private fun guessExtension(url: String): String {
+        // Jellyfin URLs look like .../stream.mkv?static=true&...
+        val path = url.substringBefore('?')
+        val ext = path.substringAfterLast('.', "").lowercase()
+        return if (ext.length in 1..5 && ext.all { it.isLetterOrDigit() }) ext else "mkv"
     }
 
     private fun startImagesDownloader(item: FindroidItem) {

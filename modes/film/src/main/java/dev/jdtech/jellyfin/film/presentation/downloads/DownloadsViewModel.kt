@@ -22,6 +22,8 @@ import dev.jdtech.jellyfin.repository.JellyfinRepository
 import dev.jdtech.jellyfin.settings.domain.AppPreferences
 import java.io.File
 import javax.inject.Inject
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -42,6 +44,7 @@ constructor(
     val state = _state.asStateFlow()
 
     private var wasBusy = false
+    private var delayedReloadJob: Job? = null
 
     init {
         // Observe queue entries -> queueItems
@@ -63,7 +66,12 @@ constructor(
                     wasBusy = true
                 } else if (wasBusy) {
                     wasBusy = false
+                    // The pump detects STATUS_SUCCESSFUL before DownloadReceiver
+                    // renames the .download file and updates the DB path. Reload
+                    // immediately (catches items whose receiver already ran) and
+                    // again after a short delay (catches the rest).
                     loadItems()
+                    reloadAfterDelay()
                 }
             }
         }
@@ -88,6 +96,14 @@ constructor(
             } catch (e: Exception) {
                 _state.emit(_state.value.copy(isLoading = false, error = e))
             }
+        }
+    }
+
+    private fun reloadAfterDelay() {
+        delayedReloadJob?.cancel()
+        delayedReloadJob = viewModelScope.launch {
+            delay(2_500L)
+            loadItems()
         }
     }
 
