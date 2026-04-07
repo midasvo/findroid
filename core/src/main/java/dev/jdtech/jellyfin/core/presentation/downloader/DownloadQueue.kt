@@ -70,6 +70,10 @@ constructor(
         val totalBytes: Long = -1L,
         /** Moving-average bytes/sec, or 0 if not computed yet. */
         val bytesPerSecond: Long = 0L,
+        /** How many times this entry has been auto-retried. */
+        val retryCount: Int = 0,
+        /** Epoch ms at which an auto-retry should fire, or null. */
+        val retryAt: Long? = null,
     )
 
     private val _entries = MutableStateFlow<List<Entry>>(emptyList())
@@ -434,9 +438,7 @@ constructor(
                     // a dead DownloadManager id.
                     val failedEntries =
                         updates.values.filter { it.state is EntryState.Failed }
-                    for (failed in failedEntries) {
-                        notifyFailure(failed.item)
-                    }
+                    // Clean up DM jobs for failed entries first.
                     for (failed in failedEntries) {
                         val dlId = failed.downloadId ?: continue
                         lastSamples.remove(dlId)
@@ -446,6 +448,31 @@ constructor(
                             Timber.e(
                                 e,
                                 "Failed to clean up orphaned download for ${failed.item.name}",
+                            )
+                        }
+                    }
+                    // Schedule auto-retry for eligible entries; notify for permanent failures.
+                    val retryUpdates = mutableMapOf<UUID, Entry>()
+                    for (failed in failedEntries) {
+                        if (failed.retryCount < MAX_AUTO_RETRIES) {
+                            val backoffMs = RETRY_BACKOFF_MS[failed.retryCount.coerceAtMost(RETRY_BACKOFF_MS.lastIndex)]
+                            retryUpdates[failed.id] = failed.copy(
+                                state = EntryState.Pending,
+                                downloadId = null,
+                                startedAt = null,
+                                progress = 0,
+                                retryCount = failed.retryCount + 1,
+                                retryAt = System.currentTimeMillis() + backoffMs,
+                            )
+                            Timber.i("Auto-retry #${failed.retryCount + 1} for ${failed.item.name} in ${backoffMs / 1000}s")
+                        } else {
+                            notifyFailure(failed.item)
+                        }
+                    }
+                    if (retryUpdates.isNotEmpty()) {
+                        mutex.withLock {
+                            _entries.value = sort(
+                                _entries.value.map { retryUpdates[it.id] ?: it }
                             )
                         }
                     }
@@ -465,7 +492,10 @@ constructor(
                 }
             val freeSlots = (maxConcurrent - currentlyActive).coerceAtLeast(0)
             if (freeSlots > 0) {
-                val pending = _entries.value.filter { it.state is EntryState.Pending }.take(freeSlots)
+                val now = System.currentTimeMillis()
+                val pending = _entries.value.filter {
+                    it.state is EntryState.Pending && (it.retryAt == null || it.retryAt <= now)
+                }.take(freeSlots)
                 for (entry in pending) {
                     startDownload(entry)
                 }
@@ -583,5 +613,8 @@ constructor(
 
     companion object {
         private const val FAILURE_CHANNEL_ID = "download_failures"
+        private const val MAX_AUTO_RETRIES = 3
+        /** Backoff delays: 30s, 2m, 10m. */
+        private val RETRY_BACKOFF_MS = longArrayOf(30_000L, 120_000L, 600_000L)
     }
 }
