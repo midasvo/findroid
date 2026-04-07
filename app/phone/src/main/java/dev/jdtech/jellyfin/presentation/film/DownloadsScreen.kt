@@ -228,13 +228,22 @@ private fun DownloadsTabContent(
                     )
                 }
                 gridItems(items = section.items, key = { it.id }) { item ->
-                    ItemCard(
-                        item = item,
-                        direction =
-                            if (item is FindroidEpisode) Direction.HORIZONTAL
-                            else Direction.VERTICAL,
-                        onClick = { onItemClick(item) },
-                    )
+                    Column {
+                        ItemCard(
+                            item = item,
+                            direction =
+                                if (item is FindroidEpisode) Direction.HORIZONTAL
+                                else Direction.VERTICAL,
+                            onClick = { onItemClick(item) },
+                        )
+                        state.itemSizes[item.id]?.let { sizeBytes ->
+                            Text(
+                                text = Formatter.formatShortFileSize(context, sizeBytes),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
                 }
             }
 

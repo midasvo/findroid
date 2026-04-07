@@ -66,7 +66,7 @@ fun ActiveDownloadCard(
             DownloadStatus.COMPLETED -> stringResource(CoreR.string.download_completed)
             else -> ""
         }
-    // "12.3 MB / 234 MB · 4.2 MB/s" when we have the data, else just the status.
+    // "12.3 MB / 234 MB · 4.2 MB/s · ~3 min" when we have the data, else just the status.
     val statusText =
         when (progress.status) {
             DownloadStatus.DOWNLOADING -> {
@@ -81,6 +81,11 @@ fun ActiveDownloadCard(
                     parts.add(
                         "${Formatter.formatShortFileSize(context, activeDownload.bytesPerSecond)}/s",
                     )
+                    val remaining = activeDownload.totalBytes - activeDownload.bytesDownloaded
+                    if (remaining > 0) {
+                        val etaSec = remaining / activeDownload.bytesPerSecond
+                        parts.add(formatEta(etaSec))
+                    }
                 }
                 if (parts.isEmpty()) baseStatusText else parts.joinToString(" · ")
             }
@@ -197,6 +202,12 @@ fun ActiveDownloadCard(
             }
         }
     }
+}
+
+private fun formatEta(seconds: Long): String = when {
+    seconds < 60 -> "~${seconds}s"
+    seconds < 3600 -> "~${seconds / 60} min"
+    else -> "~${seconds / 3600}h ${(seconds % 3600) / 60}m"
 }
 
 @Preview

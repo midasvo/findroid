@@ -2,6 +2,7 @@ package dev.jdtech.jellyfin.core.presentation.downloader
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -94,8 +95,19 @@ class DownloadPumpService : Service() {
         nm.notify(NOTIFICATION_ID, buildNotification(count))
     }
 
-    private fun buildNotification(count: Int) =
-        NotificationCompat.Builder(this, CHANNEL_ID)
+    private fun buildNotification(count: Int): android.app.Notification {
+        val launchIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pendingIntent = launchIntent?.let {
+            PendingIntent.getActivity(
+                this,
+                0,
+                it,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+        }
+        return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(CoreR.drawable.ic_download)
             .setContentTitle(
                 resources.getQuantityString(
@@ -104,10 +116,12 @@ class DownloadPumpService : Service() {
                     count.coerceAtLeast(1),
                 )
             )
+            .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_PROGRESS)
             .build()
+    }
 
     private fun ensureNotificationChannel() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return

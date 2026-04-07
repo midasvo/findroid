@@ -83,11 +83,13 @@ constructor(
             try {
                 val items = repository.getDownloads()
                 val sections = buildCompletedSections(items)
+                val itemSizes = computeItemSizes(items)
                 val storageInfo = calculateStorageInfo()
                 _state.emit(
                     _state.value.copy(
                         isLoading = false,
                         sections = sections,
+                        itemSizes = itemSizes,
                         storageUsedBytes = storageInfo.first,
                         storageFreeBytes = storageInfo.second,
                         storageIsExternal = storageInfo.third,
@@ -121,6 +123,7 @@ constructor(
     fun retryDownload(activeDownload: ActiveDownload) {
         downloadQueue.retry(activeDownload.item.id)
     }
+
 
     fun clearCompleted() {
         // Sections in the Downloads tab are keyed off repository.getDownloads(),
@@ -194,6 +197,21 @@ constructor(
 
     private fun hasCompletedSource(itemId: java.util.UUID): Boolean =
         database.getSources(itemId).any { !it.path.endsWith(".download") }
+
+    private suspend fun computeItemSizes(
+        items: List<FindroidItem>,
+    ): Map<java.util.UUID, Long> = withContext(Dispatchers.IO) {
+        val sizes = mutableMapOf<java.util.UUID, Long>()
+        for (item in items) {
+            val sources = database.getSources(item.id)
+            val totalBytes = sources.sumOf { src ->
+                val f = File(src.path)
+                if (f.exists()) f.length() else 0L
+            }
+            if (totalBytes > 0) sizes[item.id] = totalBytes
+        }
+        sizes
+    }
 
     private suspend fun calculateStorageInfo(): Triple<Long, Long, Boolean> =
         withContext(Dispatchers.IO) {
