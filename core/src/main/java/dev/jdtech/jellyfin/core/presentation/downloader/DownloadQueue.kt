@@ -9,9 +9,11 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.getSystemService
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.jdtech.jellyfin.core.R as CoreR
+import dev.jdtech.jellyfin.database.ServerDatabaseDao
 import dev.jdtech.jellyfin.models.FindroidEpisode
 import dev.jdtech.jellyfin.models.FindroidItem
 import dev.jdtech.jellyfin.models.UiText
+import dev.jdtech.jellyfin.repository.JellyfinRepository
 import dev.jdtech.jellyfin.settings.domain.AppPreferences
 import dev.jdtech.jellyfin.utils.Downloader
 import java.util.UUID
@@ -41,6 +43,8 @@ class DownloadQueue
 constructor(
     private val downloader: Downloader,
     private val appPreferences: AppPreferences,
+    private val repository: JellyfinRepository,
+    private val database: ServerDatabaseDao,
     @ApplicationContext private val context: Context,
 ) {
     sealed interface EntryState {
@@ -476,11 +480,16 @@ constructor(
                             )
                         }
                     }
-                    val completedIds =
-                        updates.values
-                            .filter { it.state is EntryState.Completed }
-                            .mapNotNull { it.downloadId }
-                    for (id in completedIds) lastSamples.remove(id)
+                    val completedEntries =
+                        updates.values.filter { it.state is EntryState.Completed }
+                    for (entry in completedEntries) {
+                        entry.downloadId?.let { lastSamples.remove(it) }
+                        // Smart Downloads: auto-queue next episode
+                        val item = entry.item
+                        if (item is FindroidEpisode) {
+                            scope.launch { smartEnqueueNext(item) }
+                        }
+                    }
                 }
             }
 
@@ -609,6 +618,40 @@ constructor(
             .build()
         // Use item hashCode as id so each failed item gets its own notification.
         nm.notify(item.id.hashCode(), notification)
+    }
+
+    /**
+     * Smart Downloads: when an episode finishes downloading, automatically
+     * queue the next episode in the same season (if it exists and isn't
+     * already downloaded or queued).
+     */
+    private suspend fun smartEnqueueNext(episode: FindroidEpisode) {
+        if (!appPreferences.getValue(appPreferences.smartDownloads)) return
+        try {
+            val episodes = repository.getEpisodes(
+                seriesId = episode.seriesId,
+                seasonId = episode.seasonId,
+            )
+            val currentIdx = episodes.indexOfFirst { it.id == episode.id }
+            if (currentIdx == -1 || currentIdx >= episodes.lastIndex) return
+
+            val next = episodes[currentIdx + 1]
+            // Skip if already downloaded (has a source with a non-.download path)
+            val existingSources = database.getSources(next.id)
+            if (existingSources.any { !it.path.endsWith(".download") }) {
+                Timber.d("Smart Downloads: ${next.name} already downloaded, skipping")
+                return
+            }
+            // Skip if already in the queue
+            if (_entries.value.any { it.id == next.id }) {
+                Timber.d("Smart Downloads: ${next.name} already queued, skipping")
+                return
+            }
+            Timber.i("Smart Downloads: auto-queueing next episode ${next.seriesName} S%02dE%02d".format(next.parentIndexNumber, next.indexNumber))
+            enqueue(next)
+        } catch (e: Exception) {
+            Timber.e(e, "Smart Downloads: failed to fetch next episode after ${episode.name}")
+        }
     }
 
     companion object {
