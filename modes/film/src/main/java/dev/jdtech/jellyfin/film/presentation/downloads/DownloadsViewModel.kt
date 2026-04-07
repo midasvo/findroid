@@ -17,6 +17,7 @@ import dev.jdtech.jellyfin.models.CollectionSection
 import dev.jdtech.jellyfin.models.FindroidItem
 import dev.jdtech.jellyfin.models.FindroidMovie
 import dev.jdtech.jellyfin.models.FindroidShow
+import dev.jdtech.jellyfin.models.toFindroidEpisode
 import dev.jdtech.jellyfin.models.FindroidSourceType
 import dev.jdtech.jellyfin.models.UiText
 import dev.jdtech.jellyfin.repository.JellyfinRepository
@@ -138,10 +139,22 @@ constructor(
     fun deleteDownloadedItem(item: FindroidItem) {
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
-                downloadQueue.remove(item.id)
-                val source = item.sources.firstOrNull { it.type == FindroidSourceType.LOCAL }
-                    ?: return@withContext
-                downloader.deleteItem(item, source)
+                if (item is FindroidShow) {
+                    val userId = repository.getUserId()
+                    val episodes = database.getEpisodesByShowId(item.id)
+                    for (epDto in episodes) {
+                        val ep = epDto.toFindroidEpisode(database, userId)
+                        downloadQueue.remove(ep.id)
+                        val source = ep.sources.firstOrNull { it.type == FindroidSourceType.LOCAL }
+                            ?: continue
+                        downloader.deleteItem(ep, source)
+                    }
+                } else {
+                    downloadQueue.remove(item.id)
+                    val source = item.sources.firstOrNull { it.type == FindroidSourceType.LOCAL }
+                        ?: return@withContext
+                    downloader.deleteItem(item, source)
+                }
             }
             loadItems()
         }
@@ -236,12 +249,23 @@ constructor(
     ): Map<java.util.UUID, Long> = withContext(Dispatchers.IO) {
         val sizes = mutableMapOf<java.util.UUID, Long>()
         for (item in items) {
-            val sources = database.getSources(item.id)
-            val totalBytes = sources.sumOf { src ->
-                val f = File(src.path)
-                if (f.exists()) f.length() else 0L
+            if (item is FindroidShow) {
+                val episodes = database.getEpisodesByShowId(item.id)
+                val totalBytes = episodes.sumOf { ep ->
+                    database.getSources(ep.id).sumOf { src ->
+                        val f = File(src.path)
+                        if (f.exists()) f.length() else 0L
+                    }
+                }
+                if (totalBytes > 0) sizes[item.id] = totalBytes
+            } else {
+                val sources = database.getSources(item.id)
+                val totalBytes = sources.sumOf { src ->
+                    val f = File(src.path)
+                    if (f.exists()) f.length() else 0L
+                }
+                if (totalBytes > 0) sizes[item.id] = totalBytes
             }
-            if (totalBytes > 0) sizes[item.id] = totalBytes
         }
         sizes
     }

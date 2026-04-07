@@ -619,6 +619,12 @@ class SettingsViewModel @Inject constructor(
                                                     backendPreference =
                                                         appPreferences.maxConcurrentDownloads,
                                                 ),
+                                                PreferenceSwitch(
+                                                    nameStringResource = R.string.pref_download_smart,
+                                                    descriptionStringRes = R.string.pref_download_smart_summary,
+                                                    backendPreference =
+                                                        appPreferences.smartDownloads,
+                                                ),
                                             )
                                     ),
                                 ),

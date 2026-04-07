@@ -271,6 +271,7 @@ private fun DownloadsTabContent(
                     )
                 }
                 gridItems(items = section.items, key = { it.id }) { item ->
+                    var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
                     Column {
                         ItemCard(
                             item = item,
@@ -291,7 +292,6 @@ private fun DownloadsTabContent(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             } ?: Spacer(Modifier)
-                            var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
                             IconButton(
                                 onClick = { showDeleteDialog = true },
                                 modifier = Modifier.size(28.dp),
