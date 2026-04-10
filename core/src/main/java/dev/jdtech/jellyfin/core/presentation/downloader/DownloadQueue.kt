@@ -432,6 +432,24 @@ constructor(
                     }
                 }
                 if (updates.isNotEmpty()) {
+                    // Finalize completed downloads (rename .download → final, update
+                    // DB path) BEFORE pushing the new state to observers. The
+                    // DownloadsViewModel reacts to busy→idle by reloading the
+                    // library — if we push first, that reload races the rename
+                    // and the library tab comes up empty.
+                    val completedNow =
+                        updates.values.filter { it.state is EntryState.Completed }
+                    for (entry in completedNow) {
+                        val dlId = entry.downloadId ?: continue
+                        try {
+                            downloader.finalizeDownload(dlId)
+                        } catch (e: Exception) {
+                            Timber.e(
+                                e,
+                                "finalizeDownload failed for ${entry.item.name} (id=$dlId)",
+                            )
+                        }
+                    }
                     mutex.withLock {
                         _entries.value =
                             sort(_entries.value.map { updates[it.id] ?: it })

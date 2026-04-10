@@ -15,8 +15,10 @@ import dev.jdtech.jellyfin.core.R as CoreR
 import dev.jdtech.jellyfin.database.ServerDatabaseDao
 import dev.jdtech.jellyfin.models.FindroidEpisode
 import dev.jdtech.jellyfin.models.FindroidItem
+import dev.jdtech.jellyfin.models.FindroidMediaStreamDto
 import dev.jdtech.jellyfin.models.FindroidMovie
 import dev.jdtech.jellyfin.models.FindroidSource
+import dev.jdtech.jellyfin.models.FindroidSourceDto
 import dev.jdtech.jellyfin.models.FindroidSources
 import dev.jdtech.jellyfin.models.FindroidTrickplayInfo
 import dev.jdtech.jellyfin.models.UiText
@@ -592,6 +594,115 @@ class DownloaderImpl(
                 }
             }
         }
+    }
+
+    override suspend fun finalizeDownload(downloadId: Long): Boolean = withContext(Dispatchers.IO) {
+        val source = database.getSourceByDownloadId(downloadId)
+        if (source != null) {
+            return@withContext finalizeSource(source)
+        }
+        val mediaStream = database.getMediaStreamByDownloadId(downloadId)
+        if (mediaStream != null) {
+            return@withContext finalizeMediaStream(mediaStream)
+        }
+        // Neither source nor mediaStream found — DM may have outlived the DB row
+        // (deleted item, sweep). Nothing to do.
+        false
+    }
+
+    private suspend fun finalizeSource(source: FindroidSourceDto): Boolean {
+        if (!source.path.endsWith(".download")) return true
+        val finalPath = source.path.removeSuffix(".download")
+        val downloadFile = File(source.path)
+        val finalFile = File(finalPath)
+
+        // If the rename already happened on disk (earlier finalize, broadcast
+        // receiver, manual recovery), just sync the DB and exit.
+        if (finalFile.exists() && finalFile.length() > 0 && !downloadFile.exists()) {
+            database.setSourcePath(source.id, finalPath)
+            return true
+        }
+
+        if (!isDownloadSuccessful(source.downloadId)) return false
+
+        if (!renameDownloadFile(source.path, finalPath)) {
+            Timber.e("Failed to rename download, deleting item. path=${source.path}")
+            deleteSourceItem(source)
+            return false
+        }
+        database.setSourcePath(source.id, finalPath)
+        Timber.d("Finalized download at: $finalPath")
+        return true
+    }
+
+    private fun finalizeMediaStream(mediaStream: FindroidMediaStreamDto): Boolean {
+        if (!mediaStream.path.endsWith(".download")) return true
+        val finalPath = mediaStream.path.removeSuffix(".download")
+        val downloadFile = File(mediaStream.path)
+        val finalFile = File(finalPath)
+
+        if (finalFile.exists() && finalFile.length() > 0 && !downloadFile.exists()) {
+            database.setMediaStreamPath(mediaStream.id, finalPath)
+            return true
+        }
+
+        if (!isDownloadSuccessful(mediaStream.downloadId)) return false
+
+        if (!renameDownloadFile(mediaStream.path, finalPath)) {
+            Timber.e("Failed to rename media stream download. path=${mediaStream.path}")
+            database.deleteMediaStream(mediaStream.id)
+            return false
+        }
+        database.setMediaStreamPath(mediaStream.id, finalPath)
+        return true
+    }
+
+    private fun isDownloadSuccessful(downloadId: Long?): Boolean {
+        if (downloadId == null) return false
+        val query = DownloadManager.Query().setFilterById(downloadId)
+        downloadManager.query(query).use { cursor ->
+            if (cursor.moveToFirst()) {
+                val status =
+                    cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
+                return status == DownloadManager.STATUS_SUCCESSFUL
+            }
+        }
+        return false
+    }
+
+    /**
+     * Renames `<fromPath>` to `<toPath>`. Falls back to copy+delete because
+     * renameTo can fail across some external storage filesystems (FAT32/exFAT).
+     */
+    private fun renameDownloadFile(fromPath: String, toPath: String): Boolean {
+        val src = File(fromPath)
+        val dst = File(toPath)
+        if (src.renameTo(dst)) return true
+        return try {
+            src.copyTo(dst, overwrite = true)
+            src.delete()
+            true
+        } catch (e: Exception) {
+            Timber.e(e, "copyTo fallback also failed: $fromPath -> $toPath")
+            false
+        }
+    }
+
+    private suspend fun deleteSourceItem(sourceDto: FindroidSourceDto) {
+        val source = sourceDto.toFindroidSource(database)
+        val userId = jellyfinRepository.getUserId()
+        val item: FindroidItem? =
+            try {
+                database.getMovie(sourceDto.itemId).toFindroidMovie(database, userId)
+            } catch (_: Exception) {
+                try {
+                    database.getEpisode(sourceDto.itemId).toFindroidEpisode(database, userId)
+                } catch (_: Exception) {
+                    null
+                }
+            }
+        if (item == null) return
+        deleteItem(item, source)
     }
 
     private suspend fun cleanupOrphanSource(itemId: UUID, userId: UUID) {

@@ -73,4 +73,13 @@ interface Downloader {
      * Run on app startup before restoring active downloads.
      */
     suspend fun sweepOrphans()
+
+    /**
+     * Promotes a finished download from `<path>.download` to `<path>` and updates
+     * the DB source path so the Library tab can find it. Idempotent — safe to call
+     * from both the pump and the broadcast receiver, in either order. Returns true
+     * if the source is in a finalized state after the call (already finalized, or
+     * just finalized successfully).
+     */
+    suspend fun finalizeDownload(downloadId: Long): Boolean
 }

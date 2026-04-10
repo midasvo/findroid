@@ -25,8 +25,6 @@ import dev.jdtech.jellyfin.settings.domain.AppPreferences
 import dev.jdtech.jellyfin.utils.Downloader
 import java.io.File
 import javax.inject.Inject
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -48,7 +46,6 @@ constructor(
     val state = _state.asStateFlow()
 
     private var wasBusy = false
-    private var delayedReloadJob: Job? = null
 
     init {
         // Load library sections on first open.
@@ -62,7 +59,9 @@ constructor(
                     entries.any { it.state is DownloadQueue.EntryState.Completed }
                 _state.emit(_state.value.copy(queueItems = items, hasCompleted = hasCompleted))
                 // When downloads finish (busy -> not busy), reload sections so newly
-                // completed items appear and removed shows disappear.
+                // completed items appear and removed shows disappear. The pump now
+                // finalizes downloads (rename + DB update) before flipping to
+                // Completed, so a single reload is enough — no race window.
                 val isBusy =
                     entries.any {
                         it.state is DownloadQueue.EntryState.Downloading ||
@@ -73,12 +72,7 @@ constructor(
                     wasBusy = true
                 } else if (wasBusy) {
                     wasBusy = false
-                    // The pump detects STATUS_SUCCESSFUL before DownloadReceiver
-                    // renames the .download file and updates the DB path. Reload
-                    // immediately (catches items whose receiver already ran) and
-                    // again after a short delay (catches the rest).
                     loadItems()
-                    reloadAfterDelay()
                 }
             }
         }
@@ -88,6 +82,7 @@ constructor(
         viewModelScope.launch {
             _state.emit(_state.value.copy(isLoading = true, error = null))
             try {
+                reconcileStuckDownloads()
                 val items = repository.getDownloads()
                 val itemSizes = computeItemSizes(items)
                 val sections = buildCompletedSections(items, itemSizes)
@@ -108,11 +103,21 @@ constructor(
         }
     }
 
-    private fun reloadAfterDelay() {
-        delayedReloadJob?.cancel()
-        delayedReloadJob = viewModelScope.launch {
-            delay(2_500L)
-            loadItems()
+    /**
+     * Self-heal pass: any source still tagged `.download` in the DB whose final
+     * file is already on disk gets fixed up. This rescues items left stuck by
+     * older buggy builds, missed broadcasts, or process death between rename
+     * and DB write — without it, those items would never appear in the Library
+     * tab again, even after restart.
+     */
+    private suspend fun reconcileStuckDownloads() = withContext(Dispatchers.IO) {
+        for (src in database.getActiveDownloadSources()) {
+            val finalPath = src.path.removeSuffix(".download")
+            val finalFile = File(finalPath)
+            if (finalFile.exists() && finalFile.length() > 0) {
+                database.setSourcePath(src.id, finalPath)
+                File(src.path).takeIf { it.exists() }?.delete()
+            }
         }
     }
 
