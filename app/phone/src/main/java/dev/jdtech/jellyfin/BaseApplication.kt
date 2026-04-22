@@ -4,12 +4,15 @@ import android.app.Application
 import android.os.Build
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.hilt.work.HiltWorkerFactory
+import androidx.work.BackoffPolicy
 import androidx.work.Configuration
+import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
-import dev.jdtech.jellyfin.work.OrphanSweepWorker
-import java.util.concurrent.TimeUnit
 import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
@@ -25,6 +28,10 @@ import dagger.hilt.android.HiltAndroidApp
 import dev.jdtech.jellyfin.core.presentation.downloader.DownloadQueue
 import dev.jdtech.jellyfin.settings.domain.AppPreferences
 import dev.jdtech.jellyfin.utils.Downloader
+import dev.jdtech.jellyfin.work.MpvCleanupWorker
+import dev.jdtech.jellyfin.work.OrphanSweepWorker
+import dev.jdtech.jellyfin.work.SyncWorker
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import kotlin.time.ExperimentalTime
 import kotlinx.coroutines.CoroutineScope
@@ -69,8 +76,13 @@ class BaseApplication : Application(), Configuration.Provider, SingletonImageLoa
             DynamicColors.applyToActivitiesIfAvailable(this)
         }
 
+        val workManager = WorkManager.getInstance(applicationContext)
+
+        scheduleUserDataSync(workManager)
+        scheduleMpvCleanup(workManager)
+
         // Schedule daily orphan sweep to clean up stale downloads.
-        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+        workManager.enqueueUniquePeriodicWork(
             "orphan-sweep",
             ExistingPeriodicWorkPolicy.KEEP,
             PeriodicWorkRequestBuilder<OrphanSweepWorker>(1, TimeUnit.DAYS).build(),
@@ -115,5 +127,42 @@ class BaseApplication : Application(), Configuration.Provider, SingletonImageLoa
             }
             .crossfade(true)
             .build()
+    }
+
+    private fun scheduleUserDataSync(workManager: WorkManager) {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
+        val syncWorkRequest =
+            OneTimeWorkRequestBuilder<SyncWorker>()
+                .setConstraints(constraints)
+                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+                .build()
+
+        workManager
+            .enqueueUniqueWork(
+                uniqueWorkName = "syncUserData",
+                existingWorkPolicy = ExistingWorkPolicy.KEEP,
+                request = syncWorkRequest
+            )
+    }
+
+    private fun scheduleMpvCleanup(workManager: WorkManager) {
+        val constraints = Constraints.Builder()
+            .setRequiresDeviceIdle(true)
+            .setRequiresBatteryNotLow(true)
+            .build()
+
+        val cleanupRequest =
+            OneTimeWorkRequestBuilder<MpvCleanupWorker>()
+                .setConstraints(constraints)
+                .build()
+
+        workManager.enqueueUniqueWork(
+            uniqueWorkName = "mpv_cleanup",
+            existingWorkPolicy = ExistingWorkPolicy.KEEP,
+            request = cleanupRequest
+        )
     }
 }
