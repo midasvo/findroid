@@ -1,0 +1,108 @@
+name: Sync with upstream
+
+# Runs nightly at 01:00 UTC, which is 03:00 in Amsterdam during summer (CEST)
+# and 02:00 during winter (CET). Close enough to the "quiet evening" window
+# year-round. Also triggerable manually from the Actions tab.
+on:
+  schedule:
+    - cron: '0 1 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      UPSTREAM: jarnedemeulemeester/findroid
+      FORK: ${{ github.repository }}
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Determine upstream default branch
+        id: branch
+        run: |
+          set -euo pipefail
+          BRANCH=$(gh api "/repos/$UPSTREAM" --jq '.default_branch')
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          echo "Upstream default branch: $BRANCH"
+
+      - name: Fast-forward fork branch
+        id: sync
+        run: |
+          set -uo pipefail
+          BRANCH='${{ steps.branch.outputs.branch }}'
+
+          # merge-upstream is fast-forward only by design; returns 409 on divergence
+          HTTP=$(gh api -X POST "/repos/$FORK/merge-upstream" \
+                   -f "branch=$BRANCH" \
+                   --include 2>&1 | head -n 1 || true)
+          BODY=$(gh api -X POST "/repos/$FORK/merge-upstream" \
+                   -f "branch=$BRANCH" 2>&1 || true)
+          echo "response: $BODY"
+
+          if echo "$BODY" | grep -q '"merge_type":"fast-forward"'; then
+            echo "result=fast-forward" >> "$GITHUB_OUTPUT"
+          elif echo "$BODY" | grep -q '"merge_type":"none"'; then
+            echo "result=up-to-date" >> "$GITHUB_OUTPUT"
+          else
+            echo "result=conflict" >> "$GITHUB_OUTPUT"
+            echo "::warning::Fork branch '$BRANCH' could not be fast-forwarded. Manual merge/rebase needed."
+          fi
+
+      - name: Mirror new upstream tags as vX.Y.Z-midasvo.1
+        id: tags
+        run: |
+          set -euo pipefail
+
+          # All upstream tags: "name sha" per line
+          mapfile -t UP < <(gh api --paginate "/repos/$UPSTREAM/tags" \
+                              --jq '.[] | "\(.name) \(.commit.sha)"')
+
+          # Existing fork tag names
+          mapfile -t FORK_TAGS < <(gh api --paginate "/repos/$FORK/tags" --jq '.[].name')
+          FORK_JOINED=$(printf '%s\n' "${FORK_TAGS[@]}")
+
+          CREATED=()
+          SKIPPED_NO_COMMIT=()
+
+          for entry in "${UP[@]}"; do
+            TAG="${entry% *}"
+            SHA="${entry#* }"
+            NEW_TAG="${TAG}-midasvo.1"
+
+            # Skip if ANY -midasvo.N variant already exists for this upstream tag
+            if printf '%s\n' "$FORK_JOINED" | grep -qE "^$(printf '%s' "$TAG" | sed 's/[.[\*^$/]/\\&/g')-midasvo\.[0-9]+$"; then
+              continue
+            fi
+
+            # Make sure the commit is present in the fork. If the branch sync
+            # failed, older tag commits may still be reachable; newer ones may not.
+            if ! gh api "/repos/$FORK/commits/$SHA" --silent >/dev/null 2>&1; then
+              SKIPPED_NO_COMMIT+=("$TAG")
+              continue
+            fi
+
+            echo "Creating tag $NEW_TAG -> $SHA"
+            gh api -X POST "/repos/$FORK/git/refs" \
+              -f "ref=refs/tags/$NEW_TAG" \
+              -f "sha=$SHA" >/dev/null
+            CREATED+=("$NEW_TAG")
+          done
+
+          printf 'Created %d new tag(s)\n' "${#CREATED[@]}"
+          for t in "${CREATED[@]:-}"; do [ -n "$t" ] && echo " - $t"; done
+
+          if [ "${#SKIPPED_NO_COMMIT[@]}" -gt 0 ]; then
+            echo "::warning::Skipped tags (commit not in fork yet, resolve branch sync first): ${SKIPPED_NO_COMMIT[*]}"
+          fi
+
+          echo "created=${#CREATED[@]}" >> "$GITHUB_OUTPUT"
+
+      - name: Fail job if branch could not be fast-forwarded
+        if: steps.sync.outputs.result == 'conflict'
+        run: |
+          echo "Branch sync ended in a conflict. Tags (if any) were still mirrored."
+          echo "GitHub will email repository admins about this failed run."
+          exit 1
