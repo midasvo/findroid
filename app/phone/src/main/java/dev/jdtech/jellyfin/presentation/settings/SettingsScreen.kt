@@ -117,7 +117,7 @@ fun SettingsScreen(
     }
 
     SettingsScreenLayout(
-        title = indexes.last(),
+        title = indexes.lastOrNull() ?: CoreR.string.title_settings,
         state = state,
         onAction = { action ->
             when (action) {
