@@ -101,7 +101,7 @@ fun FindroidMovieDto.toFindroidMovie(database: ServerDatabaseDao, userId: UUID):
         endDate = endDate,
         canDownload = false,
         canPlay = true,
-        sources = database.getSources(id).map { it.toFindroidSource(database) },
+        sources = sources,
         trailer = null,
         images = toLocalFindroidImages(itemId = id),
         chapters = chapters ?: emptyList(),
