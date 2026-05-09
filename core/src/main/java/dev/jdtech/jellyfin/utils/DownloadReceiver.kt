@@ -24,7 +24,7 @@ class DownloadReceiver : BroadcastReceiver() {
     @Inject lateinit var downloader: Downloader
 
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action != "android.intent.action.DOWNLOAD_COMPLETE") return
+        if (intent.action != DownloadManager.ACTION_DOWNLOAD_COMPLETE) return
         val id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1)
         if (id == -1L) return
 
