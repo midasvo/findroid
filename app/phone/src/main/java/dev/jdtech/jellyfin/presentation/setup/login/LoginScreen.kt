@@ -104,7 +104,7 @@ private fun LoginScreenLayout(
     var password by rememberSaveable { mutableStateOf("") }
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
 
-    val doLogin = { onAction(LoginAction.OnLoginClick(username, password)) }
+    val doLogin = { onAction(LoginAction.OnLoginClick(username.trim(), password)) }
 
     RootLayout {
         Column(
