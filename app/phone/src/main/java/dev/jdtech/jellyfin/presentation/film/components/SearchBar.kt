@@ -124,7 +124,7 @@ fun FilmSearchBar(
                             IconButton(onClick = { onExpand(false) }) {
                                 Icon(
                                     painter = painterResource(CoreR.drawable.ic_arrow_left),
-                                    contentDescription = null,
+                                    contentDescription = stringResource(CoreR.string.navigate_back),
                                 )
                             }
                         } else {

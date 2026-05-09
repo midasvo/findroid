@@ -133,7 +133,7 @@ fun SortByDialog(
                     HorizontalDivider()
                 }
                 LazyColumn(modifier = Modifier.fillMaxWidth(), state = lazyListState) {
-                    items(options) { option ->
+                    items(options, key = { it.first.name }) { option ->
                         SortByDialogItem(
                             option = option,
                             isSelected = option.first == selectedOption,

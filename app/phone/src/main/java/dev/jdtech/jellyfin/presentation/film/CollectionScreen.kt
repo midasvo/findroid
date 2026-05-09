@@ -19,6 +19,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewScreenSizes
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -79,7 +80,7 @@ fun CollectionScreenLayout(
                     IconButton(onClick = { onAction(CollectionAction.OnBackClick) }) {
                         Icon(
                             painter = painterResource(CoreR.drawable.ic_arrow_left),
-                            contentDescription = null,
+                            contentDescription = stringResource(CoreR.string.navigate_back),
                         )
                     }
                 },
