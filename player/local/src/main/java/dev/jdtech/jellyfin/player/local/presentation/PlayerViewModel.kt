@@ -70,7 +70,10 @@ constructor(
         )
     val uiState = _uiState.asStateFlow()
 
-    private val eventsChannel = Channel<PlayerEvents>()
+    // Buffered so transient events (e.g. NavigateBack on STATE_ENDED, error toasts) are not
+    // dropped if the collector is paused mid-config-change. trySend on a rendezvous channel
+    // silently fails when nobody is collecting.
+    private val eventsChannel = Channel<PlayerEvents>(Channel.BUFFERED)
     val eventsChannelFlow = eventsChannel.receiveAsFlow()
 
     data class UiState(
@@ -413,14 +416,16 @@ constructor(
                 val mediaId = player.currentMediaItem?.mediaId
                 val position = player.currentPosition
                 val duration = player.duration
-                try {
-                    repository.postPlaybackStop(
-                        UUID.fromString(mediaId),
-                        position.times(10000),
-                        position.div(duration.toFloat()).times(100).toInt(),
-                    )
-                } catch (e: Exception) {
-                    Timber.e(e)
+                if (mediaId != null && duration != C.TIME_UNSET && duration > 0) {
+                    try {
+                        repository.postPlaybackStop(
+                            UUID.fromString(mediaId),
+                            position.times(10000),
+                            position.div(duration.toFloat()).times(100).toInt(),
+                        )
+                    } catch (e: Exception) {
+                        Timber.e(e)
+                    }
                 }
                 player.seekToNextMediaItem()
                 player.play()
