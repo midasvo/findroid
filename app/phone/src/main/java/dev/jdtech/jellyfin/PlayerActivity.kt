@@ -379,16 +379,22 @@ class PlayerActivity : BasePlayerActivity() {
     ): PictureInPictureParams {
         val displayAspectRatio = Rational(binding.playerView.width, binding.playerView.height)
 
+        // videoSize is VideoSize.UNKNOWN (0x0) until the file is loaded, which would yield a NaN
+        // Rational and crash setAspectRatio. Bail with IAE so the existing call-site catches
+        // (setPictureInPictureParams / enterPictureInPictureMode both wrap in try { } catch (_: IAE)).
+        val videoSize = binding.playerView.player?.videoSize
         val aspectRatio =
-            binding.playerView.player?.videoSize?.let {
+            if (videoSize != null && videoSize.width > 0 && videoSize.height > 0) {
                 Rational(
-                    it.width.coerceAtMost((it.height * 2.39f).toInt()),
-                    it.height.coerceAtMost((it.width * 2.39f).toInt()),
+                    videoSize.width.coerceAtMost((videoSize.height * 2.39f).toInt()),
+                    videoSize.height.coerceAtMost((videoSize.width * 2.39f).toInt()),
                 )
+            } else {
+                throw IllegalArgumentException("Video size unknown, cannot build PiP params")
             }
 
         val sourceRectHint =
-            if (displayAspectRatio < aspectRatio!!) {
+            if (displayAspectRatio < aspectRatio) {
                 val space =
                     ((binding.playerView.height -
                             (binding.playerView.width.toFloat() / aspectRatio.toFloat())) / 2)
