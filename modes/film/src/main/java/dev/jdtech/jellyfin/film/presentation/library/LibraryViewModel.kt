@@ -26,11 +26,11 @@ constructor(
     private val _state = MutableStateFlow(LibraryState())
     val state = _state.asStateFlow()
 
-    lateinit var parentId: UUID
-    lateinit var libraryType: CollectionType
+    private lateinit var parentId: UUID
+    private lateinit var libraryType: CollectionType
 
-    lateinit var sortBy: SortBy
-    lateinit var sortOrder: SortOrder
+    private lateinit var sortBy: SortBy
+    private lateinit var sortOrder: SortOrder
 
     fun setup(parentId: UUID, libraryType: CollectionType) {
         this.parentId = parentId
@@ -74,9 +74,9 @@ constructor(
                             sortOrder = sortOrder,
                         )
                         .cachedIn(viewModelScope)
-                _state.emit(_state.value.copy(items = items))
+                _state.emit(_state.value.copy(items = items, isLoading = false))
             } catch (e: Exception) {
-                _state.emit(_state.value.copy(error = e))
+                _state.emit(_state.value.copy(error = e, isLoading = false))
             }
         }
     }
