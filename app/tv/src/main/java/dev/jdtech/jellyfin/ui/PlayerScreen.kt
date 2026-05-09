@@ -59,6 +59,7 @@ import java.util.Locale
 import java.util.UUID
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
+import timber.log.Timber
 
 @Composable
 fun PlayerScreen(
@@ -91,12 +92,12 @@ fun PlayerScreen(
             // Handle creation and release of media session
             when (lifecycle) {
                 Lifecycle.Event.ON_STOP -> {
-                    println("ON_STOP")
+                    Timber.d("ON_STOP")
                     mediaSession?.release()
                 }
 
                 Lifecycle.Event.ON_START -> {
-                    println("ON_START")
+                    Timber.d("ON_START")
                     mediaSession = MediaSession.Builder(context, viewModel.player).build()
                 }
 
