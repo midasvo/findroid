@@ -557,15 +557,17 @@ class JellyfinRepositoryImpl(
 
     override suspend fun getDownloads(): List<FindroidItem> =
         withContext(Dispatchers.IO) {
+            val serverId = appPreferences.getValue(appPreferences.currentServer)
+                ?: return@withContext emptyList()
             val items = mutableListOf<FindroidItem>()
             items.addAll(
                 database
-                    .getMoviesByServerId(appPreferences.getValue(appPreferences.currentServer)!!)
+                    .getMoviesByServerId(serverId)
                     .map { it.toFindroidMovie(database, currentUserId) }
             )
             items.addAll(
                 database
-                    .getShowsByServerId(appPreferences.getValue(appPreferences.currentServer)!!)
+                    .getShowsByServerId(serverId)
                     .map { it.toFindroidShow(database, currentUserId) }
             )
             items
