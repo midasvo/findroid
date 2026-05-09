@@ -36,7 +36,7 @@ constructor(
     private val eventsChannel = Channel<SeasonEvent>()
     val events = eventsChannel.receiveAsFlow()
 
-    lateinit var seasonId: UUID
+    private lateinit var seasonId: UUID
     private var downloadsOnly: Boolean = false
 
     private var wasBusy = false

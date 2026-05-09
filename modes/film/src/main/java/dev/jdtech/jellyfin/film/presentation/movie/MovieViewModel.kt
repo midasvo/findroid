@@ -29,7 +29,7 @@ constructor(
     private val _state = MutableStateFlow(MovieState())
     val state = _state.asStateFlow()
 
-    lateinit var movieId: UUID
+    private lateinit var movieId: UUID
 
     fun loadMovie(movieId: UUID) {
         this.movieId = movieId

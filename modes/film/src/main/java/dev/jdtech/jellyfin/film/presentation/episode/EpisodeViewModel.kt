@@ -29,7 +29,7 @@ constructor(
     private val _state = MutableStateFlow(EpisodeState())
     val state = _state.asStateFlow()
 
-    lateinit var episodeId: UUID
+    private lateinit var episodeId: UUID
 
     fun loadEpisode(episodeId: UUID) {
         this.episodeId = episodeId
