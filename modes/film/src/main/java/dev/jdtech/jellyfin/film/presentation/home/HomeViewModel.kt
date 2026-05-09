@@ -26,9 +26,9 @@ import timber.log.Timber
 class HomeViewModel
 @Inject
 constructor(
-    val repository: JellyfinRepository,
-    val appPreferences: AppPreferences,
-    val database: ServerDatabaseDao,
+    private val repository: JellyfinRepository,
+    private val appPreferences: AppPreferences,
+    private val database: ServerDatabaseDao,
 ) : ViewModel() {
     private val _state = MutableStateFlow(HomeState())
     val state = _state.asStateFlow()

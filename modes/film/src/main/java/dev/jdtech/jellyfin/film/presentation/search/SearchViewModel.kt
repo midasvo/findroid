@@ -18,7 +18,7 @@ class SearchViewModel @Inject constructor(private val repository: JellyfinReposi
     private val _state = MutableStateFlow(SearchState())
     val state = _state.asStateFlow()
 
-    var currentJob: Job? = null
+    private var currentJob: Job? = null
 
     private fun search(query: String) {
         currentJob?.cancel()

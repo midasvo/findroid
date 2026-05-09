@@ -37,7 +37,7 @@ constructor(
     private val eventsChannel = Channel<ShowEvent>()
     val events = eventsChannel.receiveAsFlow()
 
-    lateinit var showId: UUID
+    private lateinit var showId: UUID
     private var downloadsOnly: Boolean = false
 
     fun loadShow(showId: UUID, downloadsOnly: Boolean = this.downloadsOnly) {
