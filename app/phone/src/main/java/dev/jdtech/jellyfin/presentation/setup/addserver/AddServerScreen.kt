@@ -90,7 +90,7 @@ private fun AddServerScreenLayout(state: AddServerState, onAction: (AddServerAct
 
     var serverAddress by rememberSaveable { mutableStateOf("") }
 
-    val doConnect = { onAction(AddServerAction.OnConnectClick(serverAddress)) }
+    val doConnect = { onAction(AddServerAction.OnConnectClick(serverAddress.trim())) }
 
     LaunchedEffect(true) { focusRequester.requestFocus() }
 

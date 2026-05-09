@@ -41,7 +41,7 @@ fun AddServerAddressDialog(onAdd: (address: String) -> Unit, onDismiss: () -> Un
         },
         positiveButton = {
             TextButton(
-                onClick = { onAdd(textFieldValue.text) },
+                onClick = { onAdd(textFieldValue.text.trim()) },
                 enabled = textFieldValue.text.isNotBlank(),
             ) {
                 Text(text = stringResource(CoreR.string.add))
