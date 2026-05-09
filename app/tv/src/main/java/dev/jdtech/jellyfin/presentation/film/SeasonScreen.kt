@@ -47,6 +47,7 @@ fun SeasonScreen(
                 is SeasonAction.NavigateToItem -> navigateToPlayer(action.item.id)
                 else -> Unit
             }
+            viewModel.onAction(action)
         },
     )
 }
