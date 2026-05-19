@@ -17,6 +17,7 @@ import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -54,12 +55,18 @@ constructor(
                     loadServerName(serverId)
                 }
 
-                awaitAll(
-                    async { loadSuggestions() },
-                    async { loadResumeItems() },
-                    async { loadNextUpItems() },
-                    async { loadViews() },
-                )
+                // coroutineScope { } is required here: without it, a failure
+                // inside any async { } child propagates straight to viewModelScope
+                // and crashes the app, even with this try/catch around awaitAll.
+                // See BUGREPORT_ANALYSIS.md.
+                coroutineScope {
+                    awaitAll(
+                        async { loadSuggestions() },
+                        async { loadResumeItems() },
+                        async { loadNextUpItems() },
+                        async { loadViews() },
+                    )
+                }
             } catch (e: Exception) {
                 _state.emit(_state.value.copy(error = e))
             }
