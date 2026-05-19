@@ -43,6 +43,7 @@ import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import java.util.UUID
+import javax.inject.Provider
 import kotlin.Exception
 import kotlin.math.ceil
 import kotlinx.coroutines.Dispatchers
@@ -53,10 +54,16 @@ import timber.log.Timber
 class DownloaderImpl(
     private val context: Context,
     private val database: ServerDatabaseDao,
-    private val jellyfinRepository: JellyfinRepository,
+    private val jellyfinRepositoryProvider: Provider<JellyfinRepository>,
     private val appPreferences: AppPreferences,
     private val workManager: WorkManager,
 ) : Downloader {
+    // Resolved per use, never captured: which repository is active (online vs offline) can
+    // change at runtime without this @Singleton being recreated. Capturing a fixed instance
+    // here goes stale after an offline -> online switch.
+    private val jellyfinRepository: JellyfinRepository
+        get() = jellyfinRepositoryProvider.get()
+
     private val downloadManager = context.getSystemService(DownloadManager::class.java)
 
     // TODO: We should probably move most (if not all) code to a worker.

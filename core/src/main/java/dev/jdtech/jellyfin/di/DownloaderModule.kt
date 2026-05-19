@@ -11,6 +11,7 @@ import dev.jdtech.jellyfin.repository.JellyfinRepository
 import dev.jdtech.jellyfin.settings.domain.AppPreferences
 import dev.jdtech.jellyfin.utils.Downloader
 import dev.jdtech.jellyfin.utils.DownloaderImpl
+import javax.inject.Provider
 import javax.inject.Singleton
 
 @Module
@@ -21,14 +22,14 @@ object DownloaderModule {
     fun provideDownloader(
         application: Application,
         serverDatabase: ServerDatabaseDao,
-        jellyfinRepository: JellyfinRepository,
+        jellyfinRepositoryProvider: Provider<JellyfinRepository>,
         appPreferences: AppPreferences,
         workManager: WorkManager,
     ): Downloader {
         return DownloaderImpl(
             application,
             serverDatabase,
-            jellyfinRepository,
+            jellyfinRepositoryProvider,
             appPreferences,
             workManager,
         )

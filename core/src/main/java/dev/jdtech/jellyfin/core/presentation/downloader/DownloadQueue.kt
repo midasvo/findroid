@@ -18,6 +18,7 @@ import dev.jdtech.jellyfin.settings.domain.AppPreferences
 import dev.jdtech.jellyfin.utils.Downloader
 import java.util.UUID
 import javax.inject.Inject
+import javax.inject.Provider
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -43,10 +44,15 @@ class DownloadQueue
 constructor(
     private val downloader: Downloader,
     private val appPreferences: AppPreferences,
-    private val repository: JellyfinRepository,
+    private val repositoryProvider: Provider<JellyfinRepository>,
     private val database: ServerDatabaseDao,
     @ApplicationContext private val context: Context,
 ) {
+    // Resolved per use, never captured: the active repository can change at runtime without
+    // this @Singleton being recreated (offline <-> online switch).
+    private val repository: JellyfinRepository
+        get() = repositoryProvider.get()
+
     sealed interface EntryState {
         data object Pending : EntryState
 
