@@ -399,21 +399,15 @@ constructor(
                             else -> EntryState.Failed(null)
                         }
                     val newProgress = snapshot.progress.coerceAtLeast(0).coerceAtMost(100)
-                    val prevSample = lastSamples[dlId]
-                    val speed =
-                        if (prevSample != null && snapshot.bytesDownloaded >= 0) {
-                            val (prevBytes, prevAt) = prevSample
-                            val elapsedMs = now - prevAt
-                            if (elapsedMs > 0) {
-                                ((snapshot.bytesDownloaded - prevBytes) * 1000L / elapsedMs)
-                                    .coerceAtLeast(0L)
-                            } else {
-                                entry.bytesPerSecond
-                            }
-                        } else {
-                            0L
-                        }
-                    if (snapshot.bytesDownloaded >= 0) {
+                    val speedSample =
+                        nextDownloadSpeed(
+                            prevSample = lastSamples[dlId],
+                            currentBytes = snapshot.bytesDownloaded,
+                            nowMs = now,
+                            previousSpeed = entry.bytesPerSecond,
+                        )
+                    val speed = speedSample.bytesPerSecond
+                    if (speedSample.advanced) {
                         lastSamples[dlId] = snapshot.bytesDownloaded to now
                     }
                     val bytesChanged =
