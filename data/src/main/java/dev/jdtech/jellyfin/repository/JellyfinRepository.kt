@@ -86,7 +86,25 @@ interface JellyfinRepository {
         offline: Boolean = false,
     ): List<FindroidEpisode>
 
-    suspend fun getMediaSources(itemId: UUID, includePath: Boolean = false): List<FindroidSource>
+    /**
+     * Resolves the sources for downloading an item. Always asks for the original
+     * file, except — when [transcodeDolbyVision] is set — Dolby Vision files, which
+     * the server then transcodes to a device-compatible H.264 copy so they play
+     * offline. Every non-DV file is still the original regardless of the flag.
+     */
+    suspend fun getMediaSources(
+        itemId: UUID,
+        includePath: Boolean = false,
+        transcodeDolbyVision: Boolean = false,
+    ): List<FindroidSource>
+
+    /**
+     * Resolves the sources to play an item. Unlike [getMediaSources] (which always
+     * asks for the original file and is shared with the downloader), this sends an
+     * honest device profile so the server transcodes anything the player cannot
+     * direct-play — notably Dolby Vision on hardware without a working DV pipeline.
+     */
+    suspend fun getPlaybackSources(itemId: UUID): List<FindroidSource>
 
     suspend fun getStreamUrl(itemId: UUID, mediaSourceId: String): String
 

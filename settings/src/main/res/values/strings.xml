@@ -34,6 +34,8 @@
     <string name="pref_download_max_concurrent">Max concurrent downloads</string>
     <string name="pref_download_smart">Smart Downloads</string>
     <string name="pref_download_smart_summary">Automatically download the next episode when one finishes</string>
+    <string name="pref_download_transcode_dovi">Transcode Dolby Vision downloads</string>
+    <string name="pref_download_transcode_dovi_summary">Download a device-compatible copy of Dolby Vision files so they play offline. Other files are still downloaded as the original.</string>
     <string name="pref_download_internal_storage">Internal storage (%s free)</string>
     <string name="pref_download_sd_card">SD card %1$d (%2$s free)</string>
     <string name="mpv_player_summary">Use the experimental mpv player to play videos. mpv has support for more video, audio and subtitle codecs.</string>

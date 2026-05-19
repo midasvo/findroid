@@ -11,6 +11,7 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
@@ -238,6 +239,11 @@ constructor(
                 .setUri(streamUrl)
                 .setMediaMetadata(MediaMetadata.Builder().setTitle(name).build())
                 .setSubtitleConfigurations(mediaSubtitles)
+                .apply {
+                    // A transcode is delivered as an HLS manifest. Tell ExoPlayer
+                    // explicitly so it does not have to infer the type from the URL.
+                    if (isTranscoded) setMimeType(MimeTypes.APPLICATION_M3U8)
+                }
                 .build()
 
         return mediaItem

@@ -625,6 +625,14 @@ class SettingsViewModel @Inject constructor(
                                                     backendPreference =
                                                         appPreferences.smartDownloads,
                                                 ),
+                                                PreferenceSwitch(
+                                                    nameStringResource =
+                                                        R.string.pref_download_transcode_dovi,
+                                                    descriptionStringRes =
+                                                        R.string.pref_download_transcode_dovi_summary,
+                                                    backendPreference =
+                                                        appPreferences.downloadTranscodeDolbyVision,
+                                                ),
                                             )
                                     ),
                                 ),

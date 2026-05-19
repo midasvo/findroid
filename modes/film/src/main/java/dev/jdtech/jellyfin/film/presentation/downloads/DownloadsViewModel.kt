@@ -191,6 +191,8 @@ constructor(
             downloadId = downloadId,
             bytesDownloaded = bytesDownloaded,
             totalBytes = totalBytes,
+            totalBytesEstimated = totalBytesEstimated,
+            isTranscode = isTranscode,
             bytesPerSecond = bytesPerSecond,
             errorText = failureText,
         )

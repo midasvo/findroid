@@ -7,6 +7,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dev.jdtech.jellyfin.api.JellyfinApi
 import dev.jdtech.jellyfin.database.ServerDatabaseDao
+import dev.jdtech.jellyfin.player.DeviceProfileBuilder
 import dev.jdtech.jellyfin.repository.JellyfinRepository
 import dev.jdtech.jellyfin.repository.JellyfinRepositoryImpl
 import dev.jdtech.jellyfin.repository.JellyfinRepositoryOfflineImpl
@@ -21,14 +22,25 @@ object RepositoryModule {
 
     @Singleton
     @Provides
+    fun provideDeviceProfileBuilder(): DeviceProfileBuilder = DeviceProfileBuilder()
+
+    @Singleton
+    @Provides
     fun provideJellyfinRepositoryImpl(
         application: Application,
         jellyfinApi: JellyfinApi,
         serverDatabase: ServerDatabaseDao,
         appPreferences: AppPreferences,
+        deviceProfileBuilder: DeviceProfileBuilder,
     ): JellyfinRepositoryImpl {
 
-        return JellyfinRepositoryImpl(application, jellyfinApi, serverDatabase, appPreferences)
+        return JellyfinRepositoryImpl(
+            application,
+            jellyfinApi,
+            serverDatabase,
+            appPreferences,
+            deviceProfileBuilder,
+        )
     }
 
     @Singleton

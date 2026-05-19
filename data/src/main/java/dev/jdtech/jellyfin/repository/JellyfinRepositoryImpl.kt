@@ -26,6 +26,7 @@ import dev.jdtech.jellyfin.models.toFindroidSeason
 import dev.jdtech.jellyfin.models.toFindroidSegment
 import dev.jdtech.jellyfin.models.toFindroidShow
 import dev.jdtech.jellyfin.models.toFindroidSource
+import dev.jdtech.jellyfin.player.DeviceProfileBuilder
 import dev.jdtech.jellyfin.settings.domain.AppPreferences
 import java.io.File
 import java.util.UUID
@@ -35,7 +36,6 @@ import kotlinx.coroutines.withContext
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.DeviceOptionsDto
-import org.jellyfin.sdk.model.api.DeviceProfile
 import org.jellyfin.sdk.model.api.GeneralCommandType
 import org.jellyfin.sdk.model.api.ItemFields
 import org.jellyfin.sdk.model.api.ItemFilter
@@ -50,8 +50,6 @@ import org.jellyfin.sdk.model.api.PlaybackStopInfo
 import org.jellyfin.sdk.model.api.PublicSystemInfo
 import org.jellyfin.sdk.model.api.RepeatMode
 import org.jellyfin.sdk.model.api.SortOrder as ItemSortOrder
-import org.jellyfin.sdk.model.api.SubtitleDeliveryMethod
-import org.jellyfin.sdk.model.api.SubtitleProfile
 import org.jellyfin.sdk.model.api.UserConfiguration
 import timber.log.Timber
 
@@ -60,6 +58,7 @@ class JellyfinRepositoryImpl(
     private val jellyfinApi: JellyfinApi,
     private val database: ServerDatabaseDao,
     private val appPreferences: AppPreferences,
+    private val deviceProfileBuilder: DeviceProfileBuilder,
 ) : JellyfinRepository {
     private val currentUserId: UUID
         get() = jellyfinApi.userId
@@ -306,8 +305,16 @@ class JellyfinRepositoryImpl(
             }
         }
 
-    override suspend fun getMediaSources(itemId: UUID, includePath: Boolean): List<FindroidSource> =
+    override suspend fun getMediaSources(
+        itemId: UUID,
+        includePath: Boolean,
+        transcodeDolbyVision: Boolean,
+    ): List<FindroidSource> =
         withContext(Dispatchers.IO) {
+            // The downloader's path. The profile direct-plays everything (→ original
+            // file) unless transcodeDolbyVision is set, in which case Dolby Vision is
+            // routed through a progressive H.264 transcode. Non-DV files stay original
+            // either way.
             val sources = mutableListOf<FindroidSource>()
             sources.addAll(
                 jellyfinApi.mediaInfoApi
@@ -316,26 +323,55 @@ class JellyfinRepositoryImpl(
                         PlaybackInfoDto(
                             userId = currentUserId,
                             deviceProfile =
-                                DeviceProfile(
-                                    name = "Direct play all",
-                                    maxStaticBitrate = 1_000_000_000,
-                                    maxStreamingBitrate = 1_000_000_000,
-                                    codecProfiles = emptyList(),
-                                    containerProfiles = emptyList(),
-                                    directPlayProfiles = emptyList(),
-                                    transcodingProfiles = emptyList(),
-                                    subtitleProfiles =
-                                        listOf(
-                                            SubtitleProfile("srt", SubtitleDeliveryMethod.EXTERNAL),
-                                            SubtitleProfile("ass", SubtitleDeliveryMethod.EXTERNAL),
-                                        ),
-                                ),
+                                deviceProfileBuilder.getDownloadProfile(transcodeDolbyVision),
                             maxStreamingBitrate = 1_000_000_000,
+                            enableTranscoding = transcodeDolbyVision,
+                            // Force a real video re-encode when DV transcodes — never
+                            // let the server copy the DV bitstream into the container.
+                            allowVideoStreamCopy = false,
+                            allowAudioStreamCopy = true,
                         ),
                     )
                     .content
                     .mediaSources
                     .map { it.toFindroidSource(this@JellyfinRepositoryImpl, itemId, includePath) }
+            )
+            sources.addAll(database.getSources(itemId).map { it.toFindroidSource(database) })
+            sources
+        }
+
+    override suspend fun getPlaybackSources(itemId: UUID): List<FindroidSource> =
+        withContext(Dispatchers.IO) {
+            // mpv software-decodes practically everything, so keep it on the permissive
+            // direct-play profile. ExoPlayer gets the honest, hardware-probed profile so
+            // the server transcodes anything it cannot direct-play — notably Dolby Vision.
+            val useDirectPlay = appPreferences.getValue(appPreferences.playerMpv)
+            val deviceProfile =
+                if (useDirectPlay) {
+                    deviceProfileBuilder.getDirectPlayProfile()
+                } else {
+                    deviceProfileBuilder.getDeviceProfile()
+                }
+            val sources = mutableListOf<FindroidSource>()
+            sources.addAll(
+                jellyfinApi.mediaInfoApi
+                    .getPostedPlaybackInfo(
+                        itemId,
+                        PlaybackInfoDto(
+                            userId = currentUserId,
+                            deviceProfile = deviceProfile,
+                            maxStreamingBitrate = deviceProfile.maxStreamingBitrate,
+                            enableTranscoding = !useDirectPlay,
+                            allowVideoStreamCopy = true,
+                            allowAudioStreamCopy = true,
+                            autoOpenLiveStream = !useDirectPlay,
+                        ),
+                    )
+                    .content
+                    .mediaSources
+                    .map {
+                        it.toFindroidSource(this@JellyfinRepositoryImpl, itemId, includePath = true)
+                    }
             )
             sources.addAll(database.getSources(itemId).map { it.toFindroidSource(database) })
             sources

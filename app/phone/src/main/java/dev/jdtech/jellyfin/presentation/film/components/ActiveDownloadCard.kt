@@ -66,23 +66,36 @@ fun ActiveDownloadCard(
             DownloadStatus.COMPLETED -> stringResource(CoreR.string.download_completed)
             else -> ""
         }
-    // "12.3 MB / 234 MB · 4.2 MB/s · ~3 min" when we have the data, else just the status.
+    // A server-side transcode (e.g. a Dolby Vision download) has no known length,
+    // so its size/ETA are estimated from the original file and shown with a "~".
+    val transcodingText = stringResource(CoreR.string.download_transcoding)
+    // "Transcoding · 12.3 MB / ~234 MB · 4.2 MB/s · ~3 min" when we have the data.
     val statusText =
         when (progress.status) {
             DownloadStatus.DOWNLOADING -> {
                 val parts = mutableListOf<String>()
-                if (activeDownload.bytesDownloaded >= 0 && activeDownload.totalBytes > 0) {
+                if (activeDownload.isTranscode) {
+                    parts.add(transcodingText)
+                }
+                val downloaded = activeDownload.bytesDownloaded
+                val total = activeDownload.totalBytes
+                if (downloaded >= 0 && total > 0) {
+                    val totalPrefix = if (activeDownload.totalBytesEstimated) "~" else ""
                     parts.add(
-                        "${Formatter.formatShortFileSize(context, activeDownload.bytesDownloaded)}" +
-                            " / ${Formatter.formatShortFileSize(context, activeDownload.totalBytes)}",
+                        "${Formatter.formatShortFileSize(context, downloaded)}" +
+                            " / $totalPrefix${Formatter.formatShortFileSize(context, total)}",
                     )
+                } else if (downloaded > 0) {
+                    // Unknown total (a transcode still being produced) — at least show
+                    // how much has arrived so it is clearly not stuck.
+                    parts.add(Formatter.formatShortFileSize(context, downloaded))
                 }
                 if (activeDownload.bytesPerSecond > 0) {
                     parts.add(
                         "${Formatter.formatShortFileSize(context, activeDownload.bytesPerSecond)}/s",
                     )
-                    val remaining = activeDownload.totalBytes - activeDownload.bytesDownloaded
-                    if (remaining > 0) {
+                    val remaining = total - downloaded
+                    if (total > 0 && remaining > 0) {
                         val etaSec = remaining / activeDownload.bytesPerSecond
                         parts.add(formatEta(etaSec))
                     }
@@ -141,23 +154,36 @@ fun ActiveDownloadCard(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    if (progress.status == DownloadStatus.DOWNLOADING) {
+                    // Only show a percentage when there is a total to measure against.
+                    // A transcode of unknown length shows an indeterminate bar instead.
+                    if (progress.status == DownloadStatus.DOWNLOADING &&
+                        activeDownload.totalBytes > 0
+                    ) {
+                        val pct = animatedProgress.times(100).roundToInt()
                         Text(
-                            text = "${animatedProgress.times(100).roundToInt()}%",
+                            text = if (activeDownload.totalBytesEstimated) "~$pct%" else "$pct%",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
                 Spacer(Modifier.height(4.dp))
-                when (progress.status) {
-                    DownloadStatus.QUEUED -> {
+                when {
+                    progress.status == DownloadStatus.QUEUED -> {
                         LinearProgressIndicator(
                             progress = { 0f },
                             modifier = Modifier.fillMaxWidth().height(3.dp),
                         )
                     }
-                    DownloadStatus.PENDING -> {
+                    progress.status == DownloadStatus.PENDING -> {
+                        LinearProgressIndicator(
+                            modifier = Modifier.fillMaxWidth().height(3.dp),
+                        )
+                    }
+                    progress.status == DownloadStatus.DOWNLOADING &&
+                        activeDownload.totalBytes <= 0L -> {
+                        // Transcode of unknown length: an indeterminate bar makes clear
+                        // the download is working even though there is no percentage.
                         LinearProgressIndicator(
                             modifier = Modifier.fillMaxWidth().height(3.dp),
                         )

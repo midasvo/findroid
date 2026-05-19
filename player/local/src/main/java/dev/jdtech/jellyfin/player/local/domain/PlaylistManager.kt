@@ -206,7 +206,7 @@ class PlaylistManager @Inject internal constructor(private val repository: Jelly
     ): PlayerItem {
         Timber.d("Converting FindroidItem ${this.id} to PlayerItem")
 
-        val mediaSources = repository.getMediaSources(id, true)
+        val mediaSources = repository.getPlaybackSources(id)
         val mediaSource =
             if (mediaSourceIndex == null) {
                 mediaSources.firstOrNull { it.type == FindroidSourceType.LOCAL } ?: mediaSources[0]
@@ -255,6 +255,7 @@ class PlaylistManager @Inject internal constructor(private val repository: Jelly
             itemId = id,
             mediaSourceId = mediaSource.id,
             mediaSourceUri = mediaSource.path,
+            isTranscoded = mediaSource.transcoded,
             playbackPosition = playbackPosition,
             parentIndexNumber = if (this is FindroidEpisode) parentIndexNumber else null,
             indexNumber = if (this is FindroidEpisode) indexNumber else null,

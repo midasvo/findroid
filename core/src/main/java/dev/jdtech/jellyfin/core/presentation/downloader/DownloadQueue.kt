@@ -12,6 +12,7 @@ import dev.jdtech.jellyfin.core.R as CoreR
 import dev.jdtech.jellyfin.database.ServerDatabaseDao
 import dev.jdtech.jellyfin.models.FindroidEpisode
 import dev.jdtech.jellyfin.models.FindroidItem
+import dev.jdtech.jellyfin.models.FindroidSources
 import dev.jdtech.jellyfin.models.UiText
 import dev.jdtech.jellyfin.repository.JellyfinRepository
 import dev.jdtech.jellyfin.settings.domain.AppPreferences
@@ -78,6 +79,14 @@ constructor(
         val bytesDownloaded: Long = -1L,
         /** Total bytes, -1 if unknown. */
         val totalBytes: Long = -1L,
+        /**
+         * True when [totalBytes] is an estimate rather than a figure from
+         * DownloadManager — happens for transcodes, whose length is not known
+         * up front so we fall back to the item's original file size.
+         */
+        val totalBytesEstimated: Boolean = false,
+        /** True when the server is transcoding this download (e.g. Dolby Vision). */
+        val isTranscode: Boolean = false,
         /** Moving-average bytes/sec, or 0 if not computed yet. */
         val bytesPerSecond: Long = 0L,
         /** How many times this entry has been auto-retried. */
@@ -321,6 +330,16 @@ constructor(
         }
     }
 
+    /**
+     * True when the item has a Dolby Vision video stream. Those downloads are
+     * transcoded server-side (so they play offline), which makes their final
+     * size unknown while in flight.
+     */
+    private fun FindroidItem.hasDolbyVision(): Boolean =
+        (this as? FindroidSources)?.sources?.any { source ->
+            source.mediaStreams.any { it.videoDoViTitle != null }
+        } == true
+
     private fun sort(entries: List<Entry>): List<Entry> {
         fun priority(state: EntryState): Int =
             when (state) {
@@ -398,7 +417,28 @@ constructor(
                             // claiming success.
                             else -> EntryState.Failed(null)
                         }
-                    val newProgress = snapshot.progress.coerceAtLeast(0).coerceAtMost(100)
+                    // A server-side transcode (e.g. a Dolby Vision download) streams
+                    // output of unknown length, so DownloadManager reports no total.
+                    // Fall back to the item's original file size as an estimate, so the
+                    // UI can show an approximate %/ETA instead of a frozen 0%.
+                    val originalSize =
+                        (entry.item as? FindroidSources)?.sources?.maxOfOrNull { it.size } ?: 0L
+                    val estimating =
+                        snapshot.totalBytes <= 0L &&
+                            originalSize > 0L &&
+                            snapshot.bytesDownloaded in 0 until originalSize
+                    val effectiveTotal =
+                        if (estimating) originalSize else snapshot.totalBytes
+                    val newProgress =
+                        if (estimating) {
+                            // Cap at 99: the estimate may undershoot, and we only want
+                            // to show 100% once the download has genuinely completed.
+                            (snapshot.bytesDownloaded * 100 / originalSize)
+                                .toInt()
+                                .coerceIn(0, 99)
+                        } else {
+                            snapshot.progress.coerceAtLeast(0).coerceAtMost(100)
+                        }
                     val speedSample =
                         nextDownloadSpeed(
                             prevSample = lastSamples[dlId],
@@ -412,7 +452,8 @@ constructor(
                     }
                     val bytesChanged =
                         snapshot.bytesDownloaded != entry.bytesDownloaded ||
-                            snapshot.totalBytes != entry.totalBytes
+                            effectiveTotal != entry.totalBytes ||
+                            estimating != entry.totalBytesEstimated
                     val speedChanged = speed != entry.bytesPerSecond
                     if (
                         newState != null ||
@@ -425,7 +466,8 @@ constructor(
                                 state = newState ?: entry.state,
                                 progress = if (newState == EntryState.Completed) 100 else newProgress,
                                 bytesDownloaded = snapshot.bytesDownloaded,
-                                totalBytes = snapshot.totalBytes,
+                                totalBytes = effectiveTotal,
+                                totalBytesEstimated = estimating,
                                 // Clear speed once terminal; stale numbers confuse the UI.
                                 bytesPerSecond = if (newState != null) 0L else speed,
                             )
@@ -555,6 +597,11 @@ constructor(
     private suspend fun startDownload(entry: Entry) {
         val storageIndex =
             appPreferences.getValue(appPreferences.downloadStorageIndex)?.toIntOrNull() ?: 0
+        // A Dolby Vision item is transcoded server-side when the setting is on, which
+        // makes the download's length unknown up front — flag it so the UI can say so.
+        val isTranscode =
+            appPreferences.getValue(appPreferences.downloadTranscodeDolbyVision) &&
+                entry.item.hasDolbyVision()
         // Drop the pending row *before* running setup. If the process dies
         // mid-setup, restoreAll() on next launch would otherwise resurrect the
         // pending entry and enqueue a duplicate DM job + duplicate source row
@@ -595,6 +642,7 @@ constructor(
                                 state = EntryState.Downloading,
                                 downloadId = downloadId,
                                 startedAt = System.currentTimeMillis(),
+                                isTranscode = isTranscode,
                             )
                         } else {
                             e.copy(state = EntryState.Failed(errorText))

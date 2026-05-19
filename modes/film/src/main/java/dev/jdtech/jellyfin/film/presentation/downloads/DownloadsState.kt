@@ -14,6 +14,10 @@ data class ActiveDownload(
     val bytesDownloaded: Long = -1L,
     /** Total bytes for the download, or -1 if unknown. */
     val totalBytes: Long = -1L,
+    /** True when [totalBytes] is an estimate (a transcode of unknown length). */
+    val totalBytesEstimated: Boolean = false,
+    /** True when the server is transcoding this download (e.g. Dolby Vision). */
+    val isTranscode: Boolean = false,
     /** Transfer rate in bytes/sec, or 0 if not yet computed. */
     val bytesPerSecond: Long = 0L,
     /** User-facing failure reason, only set when progress.status == FAILED. */

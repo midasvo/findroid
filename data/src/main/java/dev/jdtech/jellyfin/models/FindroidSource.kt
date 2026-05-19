@@ -15,6 +15,12 @@ data class FindroidSource(
     val size: Long,
     val mediaStreams: List<FindroidMediaStream>,
     val downloadId: Long? = null,
+    /**
+     * True when [path] points at a server-side transcode (an HLS manifest) rather
+     * than the original file. Only the playback path ever produces this — downloads
+     * always fetch the original.
+     */
+    val transcoded: Boolean = false,
 )
 
 suspend fun MediaSourceInfo.toFindroidSource(
@@ -22,16 +28,23 @@ suspend fun MediaSourceInfo.toFindroidSource(
     itemId: UUID,
     includePath: Boolean = false,
 ): FindroidSource {
+    // When the server decided this source needs transcoding it returns a (relative)
+    // transcodingUrl — an HLS manifest. Honor it over the original file. This only
+    // happens on the playback path; downloads request a profile with no transcoding
+    // profiles, so transcodingUrl is always null there.
+    val transcodeUrl = transcodingUrl
+    val transcoded = !transcodeUrl.isNullOrBlank()
     val path =
-        when (protocol) {
-            MediaProtocol.FILE -> {
+        when {
+            transcoded -> jellyfinRepository.getBaseUrl() + transcodeUrl
+            protocol == MediaProtocol.FILE -> {
                 try {
                     if (includePath) jellyfinRepository.getStreamUrl(itemId, id.orEmpty()) else ""
                 } catch (e: Exception) {
                     ""
                 }
             }
-            MediaProtocol.HTTP -> this.path.orEmpty()
+            protocol == MediaProtocol.HTTP -> this.path.orEmpty()
             else -> ""
         }
     return FindroidSource(
@@ -42,6 +55,7 @@ suspend fun MediaSourceInfo.toFindroidSource(
         size = size ?: 0,
         mediaStreams =
             mediaStreams?.map { it.toFindroidMediaStream(jellyfinRepository) } ?: emptyList(),
+        transcoded = transcoded,
     )
 }
 

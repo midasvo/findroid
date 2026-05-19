@@ -79,8 +79,12 @@ class DownloaderImpl(
         // DB row, writing to disk and consuming bandwidth indefinitely.
         var enqueuedDownloadId: Long? = null
         try {
+            val transcodeDolbyVision =
+                appPreferences.getValue(appPreferences.downloadTranscodeDolbyVision)
             val source =
-                jellyfinRepository.getMediaSources(item.id, true).first { it.id == sourceId }
+                jellyfinRepository
+                    .getMediaSources(item.id, true, transcodeDolbyVision)
+                    .first { it.id == sourceId }
             val segments = jellyfinRepository.getSegments(item.id)
             val trickplayInfo =
                 if (item is FindroidSources) {
@@ -223,7 +227,12 @@ class DownloaderImpl(
         storageIndex: Int,
     ): Pair<Long, UiText?> {
         val sources = try {
-            jellyfinRepository.getMediaSources(item.id, true)
+            jellyfinRepository.getMediaSources(
+                item.id,
+                includePath = true,
+                transcodeDolbyVision =
+                    appPreferences.getValue(appPreferences.downloadTranscodeDolbyVision),
+            )
         } catch (e: Exception) {
             Timber.e(e, "Failed to resolve media sources for ${item.name}")
             return Pair(-1, mapDownloadError(e))

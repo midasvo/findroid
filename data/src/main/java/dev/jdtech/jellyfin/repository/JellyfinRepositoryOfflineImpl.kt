@@ -357,10 +357,18 @@ class JellyfinRepositoryOfflineImpl(
             items
         }
 
-    override suspend fun getMediaSources(itemId: UUID, includePath: Boolean): List<FindroidSource> =
+    override suspend fun getMediaSources(
+        itemId: UUID,
+        includePath: Boolean,
+        transcodeDolbyVision: Boolean,
+    ): List<FindroidSource> =
         withContext(Dispatchers.IO) {
             database.getSources(itemId).map { it.toFindroidSource(database) }
         }
+
+    // Offline playback is always a local file — no server, no transcoding.
+    override suspend fun getPlaybackSources(itemId: UUID): List<FindroidSource> =
+        getMediaSources(itemId, includePath = false)
 
     override suspend fun getStreamUrl(itemId: UUID, mediaSourceId: String): String {
         TODO("Not yet implemented")

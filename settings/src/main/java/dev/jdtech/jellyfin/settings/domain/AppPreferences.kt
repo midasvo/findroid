@@ -85,6 +85,10 @@ class AppPreferences @Inject constructor(val sharedPreferences: SharedPreference
     val maxConcurrentDownloads = Preference("pref_downloads_max_concurrent", 2)
     val smartDownloads = Preference("pref_downloads_smart", false)
 
+    // When enabled, Dolby Vision files are downloaded as a device-compatible
+    // (H.264) transcode so they play offline. Non-DV files stay original.
+    val downloadTranscodeDolbyVision = Preference("pref_downloads_transcode_dovi", true)
+
     // Network
     val requestTimeout =
         Preference("pref_network_request_timeout", Constants.NETWORK_DEFAULT_REQUEST_TIMEOUT)
