@@ -11,6 +11,8 @@ import dev.jdtech.jellyfin.repository.JellyfinRepository
 import dev.jdtech.jellyfin.repository.JellyfinRepositoryImpl
 import dev.jdtech.jellyfin.repository.JellyfinRepositoryOfflineImpl
 import dev.jdtech.jellyfin.settings.domain.AppPreferences
+import dev.jdtech.jellyfin.utils.NetworkConnectivity
+import dev.jdtech.jellyfin.utils.isOfflineModeActive
 import javax.inject.Singleton
 
 @Module
@@ -51,11 +53,13 @@ object RepositoryModule {
         jellyfinRepositoryImpl: JellyfinRepositoryImpl,
         jellyfinRepositoryOfflineImpl: JellyfinRepositoryOfflineImpl,
         appPreferences: AppPreferences,
+        networkConnectivity: NetworkConnectivity,
     ): JellyfinRepository {
 
-        return when (appPreferences.getValue(appPreferences.offlineMode)) {
-            true -> jellyfinRepositoryOfflineImpl
-            false -> jellyfinRepositoryImpl
+        return if (isOfflineModeActive(appPreferences, networkConnectivity)) {
+            jellyfinRepositoryOfflineImpl
+        } else {
+            jellyfinRepositoryImpl
         }
     }
 }

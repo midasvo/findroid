@@ -7,6 +7,8 @@ import dev.jdtech.jellyfin.database.ServerDatabaseDao
 import dev.jdtech.jellyfin.models.Server
 import dev.jdtech.jellyfin.models.User
 import dev.jdtech.jellyfin.settings.domain.AppPreferences
+import dev.jdtech.jellyfin.utils.NetworkConnectivity
+import dev.jdtech.jellyfin.utils.isOfflineModeActive
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,8 +17,11 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class MainViewModel
 @Inject
-constructor(private val appPreferences: AppPreferences, private val database: ServerDatabaseDao) :
-    ViewModel() {
+constructor(
+    private val appPreferences: AppPreferences,
+    private val database: ServerDatabaseDao,
+    private val networkConnectivity: NetworkConnectivity,
+) : ViewModel() {
     private val _state = MutableStateFlow(MainState())
     val state = _state.asStateFlow()
 
@@ -82,7 +87,7 @@ constructor(private val appPreferences: AppPreferences, private val database: Se
     }
 
     private fun checkIsOfflineMode(): Boolean {
-        return appPreferences.getValue(appPreferences.offlineMode)
+        return isOfflineModeActive(appPreferences, networkConnectivity)
     }
 }
 

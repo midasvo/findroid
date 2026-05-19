@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -82,6 +83,31 @@ fun HomeHeader(
         Spacer(Modifier.width(MaterialTheme.spacings.medium))
 
         Row(horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacings.medium)) {
+            if (isOfflineMode) {
+                Surface(
+                    modifier = Modifier.fillMaxHeight(),
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = MaterialTheme.spacings.medium),
+                        horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacings.small),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            painter = painterResource(CoreR.drawable.ic_server_off),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.size(20.dp),
+                        )
+                        Text(
+                            text = stringResource(CoreR.string.offline),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        )
+                    }
+                }
+            }
             AnimatedVisibility(visible = isError, enter = fadeIn(), exit = fadeOut()) {
                 Surface(
                     onClick = onErrorClick,
