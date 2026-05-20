@@ -1,6 +1,5 @@
 package dev.jdtech.jellyfin.presentation.settings
 
-import android.graphics.Color as AndroidColor
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -39,7 +38,6 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.text.Cue
-import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.SubtitleView
 import dev.jdtech.jellyfin.core.R as CoreR
 import dev.jdtech.jellyfin.presentation.settings.components.SettingsGroupCard
@@ -53,6 +51,7 @@ import dev.jdtech.jellyfin.settings.presentation.subtitle.SubtitleStyleEvent
 import dev.jdtech.jellyfin.settings.presentation.subtitle.SubtitleStyleState
 import dev.jdtech.jellyfin.settings.presentation.subtitle.SubtitleStyleViewModel
 import dev.jdtech.jellyfin.utils.ObserveAsEvents
+import dev.jdtech.jellyfin.utils.buildSubtitleCaptionStyle
 import timber.log.Timber
 
 @Composable
@@ -181,7 +180,15 @@ private fun SubtitleStylePreview(
             modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp),
             factory = { context -> SubtitleView(context) },
             update = { view ->
-                view.setStyle(state.toCaptionStyle())
+                view.setStyle(
+                    buildSubtitleCaptionStyle(
+                        foregroundColorHex = state.foregroundColor,
+                        backgroundColorHex = state.backgroundColor,
+                        edgeColorHex = state.edgeColor,
+                        edgeType = state.edgeType,
+                        fontFamily = state.fontFamily,
+                    )
+                )
                 view.setFractionalTextSize(
                     SubtitleView.DEFAULT_TEXT_SIZE_FRACTION *
                         (state.fontScale.coerceIn(
@@ -192,44 +199,5 @@ private fun SubtitleStylePreview(
                 view.setCues(listOf(Cue.Builder().setText(sampleText).build()))
             },
         )
-    }
-}
-
-private fun SubtitleStyleState.toCaptionStyle(): CaptionStyleCompat {
-    val foreground = parseColorSafe(foregroundColor, AndroidColor.WHITE)
-    val background = parseColorSafe(backgroundColor, AndroidColor.argb(128, 0, 0, 0))
-    val edge = parseColorSafe(edgeColor, AndroidColor.BLACK)
-    val edgeTypeConst =
-        when (edgeType) {
-            Constants.SubtitleStyle.EDGE_NONE -> CaptionStyleCompat.EDGE_TYPE_NONE
-            Constants.SubtitleStyle.EDGE_OUTLINE -> CaptionStyleCompat.EDGE_TYPE_OUTLINE
-            Constants.SubtitleStyle.EDGE_DROP_SHADOW -> CaptionStyleCompat.EDGE_TYPE_DROP_SHADOW
-            Constants.SubtitleStyle.EDGE_DEPRESSED -> CaptionStyleCompat.EDGE_TYPE_DEPRESSED
-            Constants.SubtitleStyle.EDGE_RAISED -> CaptionStyleCompat.EDGE_TYPE_RAISED
-            else -> CaptionStyleCompat.EDGE_TYPE_OUTLINE
-        }
-    val typeface =
-        when (fontFamily) {
-            Constants.SubtitleStyle.FONT_SERIF -> android.graphics.Typeface.SERIF
-            Constants.SubtitleStyle.FONT_SANS_SERIF -> android.graphics.Typeface.SANS_SERIF
-            Constants.SubtitleStyle.FONT_MONOSPACE -> android.graphics.Typeface.MONOSPACE
-            else -> android.graphics.Typeface.DEFAULT
-        }
-    return CaptionStyleCompat(
-        foreground,
-        background,
-        AndroidColor.TRANSPARENT,
-        edgeTypeConst,
-        edge,
-        typeface,
-    )
-}
-
-private fun parseColorSafe(value: String?, fallback: Int): Int {
-    if (value.isNullOrBlank()) return fallback
-    return try {
-        AndroidColor.parseColor(value)
-    } catch (e: IllegalArgumentException) {
-        fallback
     }
 }
