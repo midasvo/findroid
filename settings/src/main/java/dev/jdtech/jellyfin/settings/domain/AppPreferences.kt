@@ -81,27 +81,29 @@ class AppPreferences @Inject constructor(val sharedPreferences: SharedPreference
 
     // Player - Media Segments per-type action (SKIP / ASK / IGNORE)
     //
-    // Stored as nullable strings so DataStore-style absent-value semantics work
-    // and PreferenceSelect can render them without bespoke handling. The
-    // defaults mirror the tri-state UX introduced in jellyfin-androidtv v0.18.0:
-    // intro / outro / recap default to ASK (offer a skip button), preview /
-    // commercial default to IGNORE so the player does not interrupt them. The
-    // PlayerViewModel falls back to these same defaults when the stored value
-    // is null or malformed.
+    // Stored as nullable strings. The default is null on purpose: an absent
+    // value means "the user has not picked a per-type action yet, fall back to
+    // the legacy global toggles" (issue #12 / PR #20 review). Without that
+    // sentinel the new per-type defaults would override existing users'
+    // configured auto-skip / skip-button preferences on first launch after
+    // upgrade, silently changing playback behaviour.
+    //
+    // PlayerViewModel.resolveSegmentAction handles null by consulting the
+    // legacy toggles, then falls back to IGNORE.
     val playerMediaSegmentsIntroAction
-        get() = Preference<String?>("pref_player_media_segments_intro_action", "ASK")
+        get() = Preference<String?>("pref_player_media_segments_intro_action", null)
 
     val playerMediaSegmentsOutroAction
-        get() = Preference<String?>("pref_player_media_segments_outro_action", "ASK")
+        get() = Preference<String?>("pref_player_media_segments_outro_action", null)
 
     val playerMediaSegmentsRecapAction
-        get() = Preference<String?>("pref_player_media_segments_recap_action", "ASK")
+        get() = Preference<String?>("pref_player_media_segments_recap_action", null)
 
     val playerMediaSegmentsPreviewAction
-        get() = Preference<String?>("pref_player_media_segments_preview_action", "IGNORE")
+        get() = Preference<String?>("pref_player_media_segments_preview_action", null)
 
     val playerMediaSegmentsCommercialAction
-        get() = Preference<String?>("pref_player_media_segments_commercial_action", "IGNORE")
+        get() = Preference<String?>("pref_player_media_segments_commercial_action", null)
 
     // Player - trickplay
     val playerTrickplay = Preference("pref_player_trickplay", true)
