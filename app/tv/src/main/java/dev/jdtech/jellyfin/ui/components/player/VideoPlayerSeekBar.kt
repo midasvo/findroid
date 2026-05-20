@@ -35,6 +35,11 @@ fun VideoPlayerSeekBar(
     progress: Float,
     onSeek: (seekProgress: Float) -> Unit,
     state: VideoPlayerState,
+    /**
+     * Chapter start positions as fractions of total duration (0f..1f). Out-of-range entries are
+     * silently dropped. Pass [emptyList] to render no markers.
+     */
+    chapterMarkers: List<Float> = emptyList(),
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     var isSelected by remember { mutableStateOf(false) }
@@ -109,6 +114,22 @@ fun VideoPlayerSeekBar(
             strokeWidth = size.height.div(2),
             cap = StrokeCap.Round,
         )
+        // Drawn after both bar segments and before the scrubber thumb, so ticks stay visible in
+        // both the played and unplayed portions but never occlude the current-position dot.
+        if (chapterMarkers.isNotEmpty()) {
+            val tickWidth = size.height.div(4).coerceAtLeast(2f)
+            val tickHeight = size.height.div(2)
+            chapterMarkers.forEach { fraction ->
+                if (fraction <= 0f || fraction >= 1f) return@forEach
+                drawLine(
+                    color = Color.White,
+                    start = Offset(x = size.width.times(fraction), y = yOffset - tickHeight.div(2)),
+                    end = Offset(x = size.width.times(fraction), y = yOffset + tickHeight.div(2)),
+                    strokeWidth = tickWidth,
+                    cap = StrokeCap.Round,
+                )
+            }
+        }
         drawCircle(
             color = Color.White,
             radius = size.height.div(2),

@@ -44,9 +44,12 @@ import androidx.tv.material3.Glow
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import dev.jdtech.jellyfin.core.R
+import dev.jdtech.jellyfin.player.core.domain.models.PlayerChapter
 import dev.jdtech.jellyfin.player.core.domain.models.Track
+import dev.jdtech.jellyfin.player.local.presentation.PlayerAction
 import dev.jdtech.jellyfin.player.local.presentation.PlayerViewModel
 import dev.jdtech.jellyfin.presentation.theme.spacings
+import dev.jdtech.jellyfin.ui.components.player.ChapterListDialog
 import dev.jdtech.jellyfin.ui.components.player.VideoPlayerControlsLayout
 import dev.jdtech.jellyfin.ui.components.player.VideoPlayerMediaButton
 import dev.jdtech.jellyfin.ui.components.player.VideoPlayerMediaTitle
@@ -205,6 +208,7 @@ fun PlayerScreen(
             modifier = Modifier.fillMaxSize(),
         )
         val focusRequester = remember { FocusRequester() }
+        var showChaptersDialog by remember { mutableStateOf(false) }
         VideoPlayerOverlay(
             modifier = Modifier.align(Alignment.BottomCenter),
             focusRequester = focusRequester,
@@ -218,10 +222,23 @@ fun PlayerScreen(
                     player = viewModel.player,
                     state = videoPlayerState,
                     focusRequester = focusRequester,
+                    chapters = uiState.currentChapters,
+                    onChaptersClick = { showChaptersDialog = true },
                     // navigator = navigator,
                 )
             },
         )
+
+        if (showChaptersDialog) {
+            ChapterListDialog(
+                chapters = uiState.currentChapters,
+                chapterImageUrl = { index -> viewModel.chapterImageUrl(index) },
+                onChapterSelected = { index ->
+                    viewModel.onAction(PlayerAction.JumpToChapter(index))
+                },
+                onDismiss = { showChaptersDialog = false },
+            )
+        }
     }
 }
 
@@ -234,6 +251,8 @@ fun VideoPlayerControls(
     player: Player,
     state: VideoPlayerState,
     focusRequester: FocusRequester,
+    chapters: List<PlayerChapter> = emptyList(),
+    onChaptersClick: () -> Unit = {},
     // navigator: DestinationsNavigator,
 ) {
     val onPlayPauseToggle = { shouldPlay: Boolean ->
@@ -243,6 +262,18 @@ fun VideoPlayerControls(
             player.pause()
         }
     }
+
+    val duration = player.duration
+    // Recomputed only when the chapter set or duration changes; the per-tick currentPosition
+    // updates would otherwise re-allocate this list every 300ms.
+    val chapterMarkers =
+        remember(chapters, duration) {
+            if (chapters.isNotEmpty() && duration > 0L) {
+                chapters.map { it.startPosition.toFloat() / duration.toFloat() }
+            } else {
+                emptyList()
+            }
+        }
 
     VideoPlayerControlsLayout(
         mediaTitle = { VideoPlayerMediaTitle(title = title, subtitle = null) },
@@ -255,6 +286,7 @@ fun VideoPlayerControls(
                 onSeek = { player.seekTo(player.duration.times(it).toLong()) },
                 contentProgress = contentCurrentPosition.milliseconds,
                 contentDuration = player.duration.milliseconds,
+                chapterMarkers = chapterMarkers,
             )
         },
         mediaActions = {
@@ -279,6 +311,14 @@ fun VideoPlayerControls(
                         // tracks))
                     },
                 )
+                if (chapters.isNotEmpty()) {
+                    VideoPlayerMediaButton(
+                        icon = painterResource(id = R.drawable.ic_list),
+                        state = state,
+                        isPlaying = isPlaying,
+                        onClick = onChaptersClick,
+                    )
+                }
             }
         },
     )

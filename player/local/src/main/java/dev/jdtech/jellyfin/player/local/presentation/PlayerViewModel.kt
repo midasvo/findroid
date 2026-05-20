@@ -61,6 +61,7 @@ constructor(
     private val _uiState =
         MutableStateFlow(
             UiState(
+                currentItemId = null,
                 currentItemTitle = "",
                 currentSegment = null,
                 currentSkipButtonStringRes = R.string.player_controls_skip_intro,
@@ -78,6 +79,8 @@ constructor(
     val eventsChannelFlow = eventsChannel.receiveAsFlow()
 
     data class UiState(
+        /** The item currently loaded in the player. `null` until the first transition fires. */
+        val currentItemId: UUID?,
         val currentItemTitle: String,
         val currentSegment: FindroidSegment?,
         val currentSkipButtonStringRes: Int,
@@ -366,6 +369,7 @@ constructor(
                             }
                         _uiState.update {
                             it.copy(
+                                currentItemId = item.itemId,
                                 currentItemTitle = itemTitle,
                                 currentSegment = null,
                                 currentChapters = item.chapters,
@@ -662,10 +666,32 @@ constructor(
      * @param [chapterIndex] the index of the chapter to seek to
      * @return the [PlayerChapter] which has been sought to
      */
-    private fun seekToChapter(chapterIndex: Int): PlayerChapter? {
+    fun seekToChapter(chapterIndex: Int): PlayerChapter? {
         return getChapters().getOrNull(chapterIndex)?.also { chapter ->
             player.seekTo(chapter.startPosition)
         }
+    }
+
+    fun onAction(action: PlayerAction) {
+        when (action) {
+            is PlayerAction.JumpToChapter -> {
+                seekToChapter(action.index)
+            }
+        }
+    }
+
+    /**
+     * Build the URL for a chapter thumbnail. Returns `null` when no item is loaded yet, when the
+     * index is out of bounds, or when the server did not extract a thumbnail for this chapter.
+     */
+    fun chapterImageUrl(chapterIndex: Int): String? {
+        val state = uiState.value
+        val itemId = state.currentItemId ?: return null
+        val chapter = state.currentChapters.getOrNull(chapterIndex) ?: return null
+        val tag = chapter.imageTag ?: return null
+        val base = repository.getBaseUrl().trimEnd('/')
+        if (base.isEmpty()) return null
+        return "$base/Items/$itemId/Images/Chapter/$chapterIndex?tag=$tag"
     }
 
     /**
