@@ -56,6 +56,7 @@ fun SettingsScreen(
             is SettingsEvent.NavigateToUsers -> navigateToUsers()
             is SettingsEvent.NavigateToServers -> navigateToServers()
             is SettingsEvent.NavigateToAbout -> Unit
+            is SettingsEvent.NavigateToSubtitleStyle -> Unit
             is SettingsEvent.UpdateTheme -> Unit
             is SettingsEvent.LaunchIntent -> {
                 try {

@@ -45,6 +45,7 @@ dependencies {
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation(libs.jellyfin.core)
+    implementation(libs.androidx.media3.ui)
     implementation(libs.material)
     implementation(libs.okhttp)
     implementation(libs.timber)

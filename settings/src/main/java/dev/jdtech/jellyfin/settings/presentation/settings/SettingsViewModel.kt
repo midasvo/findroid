@@ -1,10 +1,8 @@
 package dev.jdtech.jellyfin.settings.presentation.settings
 
 import android.content.Context
-import android.content.Intent
 import android.os.Build
 import android.os.StatFs
-import android.provider.Settings
 import android.text.format.Formatter
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -229,19 +227,15 @@ class SettingsViewModel @Inject constructor(
                                         preferences =
                                             listOf(
                                                 PreferenceCategory(
-                                                    nameStringResource = R.string.subtitles,
+                                                    nameStringResource = R.string.subtitle_style,
                                                     descriptionStringRes =
-                                                        R.string.subtitles_summary,
+                                                        R.string.subtitle_style_summary,
                                                     iconDrawableId = R.drawable.ic_closed_caption,
                                                     onClick = {
                                                         viewModelScope.launch {
                                                             eventsChannel.send(
-                                                                SettingsEvent.LaunchIntent(
-                                                                    Intent(
-                                                                        Settings
-                                                                            .ACTION_CAPTIONING_SETTINGS
-                                                                    )
-                                                                )
+                                                                SettingsEvent
+                                                                    .NavigateToSubtitleStyle
                                                             )
                                                         }
                                                     },

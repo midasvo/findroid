@@ -48,4 +48,72 @@
         <item>COMMERCIAL</item>
         <item>UNKNOWN</item>
     </string-array>
+    <string-array name="subtitle_edge_types">
+        <item>@string/subtitle_edge_type_none</item>
+        <item>@string/subtitle_edge_type_outline</item>
+        <item>@string/subtitle_edge_type_drop_shadow</item>
+        <item>@string/subtitle_edge_type_depressed</item>
+        <item>@string/subtitle_edge_type_raised</item>
+    </string-array>
+    <string-array name="subtitle_edge_type_values">
+        <item>none</item>
+        <item>outline</item>
+        <item>drop_shadow</item>
+        <item>depressed</item>
+        <item>raised</item>
+    </string-array>
+    <string-array name="subtitle_font_families">
+        <item>@string/subtitle_font_default</item>
+        <item>@string/subtitle_font_serif</item>
+        <item>@string/subtitle_font_sans_serif</item>
+        <item>@string/subtitle_font_monospace</item>
+    </string-array>
+    <string-array name="subtitle_font_family_values">
+        <item>default</item>
+        <item>serif</item>
+        <item>sans_serif</item>
+        <item>monospace</item>
+    </string-array>
+    <string-array name="subtitle_foreground_colors">
+        <item>@string/subtitle_color_white</item>
+        <item>@string/subtitle_color_yellow</item>
+        <item>@string/subtitle_color_red</item>
+        <item>@string/subtitle_color_cyan</item>
+        <item>@string/subtitle_color_green</item>
+        <item>@string/subtitle_color_black</item>
+    </string-array>
+    <string-array name="subtitle_foreground_color_values">
+        <item>#FFFFFFFF</item>
+        <item>#FFFFFF00</item>
+        <item>#FFFF0000</item>
+        <item>#FF00FFFF</item>
+        <item>#FF00FF00</item>
+        <item>#FF000000</item>
+    </string-array>
+    <string-array name="subtitle_background_colors">
+        <item>@string/subtitle_color_translucent_black</item>
+        <item>@string/subtitle_color_black</item>
+        <item>@string/subtitle_color_translucent_white</item>
+        <item>@string/subtitle_color_white</item>
+        <item>@string/subtitle_color_transparent</item>
+    </string-array>
+    <string-array name="subtitle_background_color_values">
+        <item>#80000000</item>
+        <item>#FF000000</item>
+        <item>#80FFFFFF</item>
+        <item>#FFFFFFFF</item>
+        <item>#00000000</item>
+    </string-array>
+    <string-array name="subtitle_edge_colors">
+        <item>@string/subtitle_color_black</item>
+        <item>@string/subtitle_color_white</item>
+        <item>@string/subtitle_color_yellow</item>
+        <item>@string/subtitle_color_red</item>
+    </string-array>
+    <string-array name="subtitle_edge_color_values">
+        <item>#FF000000</item>
+        <item>#FFFFFFFF</item>
+        <item>#FFFFFF00</item>
+        <item>#FFFF0000</item>
+    </string-array>
 </resources>

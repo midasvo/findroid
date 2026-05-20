@@ -43,7 +43,9 @@ import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Glow
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
+import dagger.hilt.android.EntryPointAccessors
 import dev.jdtech.jellyfin.core.R
+import dev.jdtech.jellyfin.di.SubtitleStyleEntryPoint
 import dev.jdtech.jellyfin.player.core.domain.models.PlayerChapter
 import dev.jdtech.jellyfin.player.core.domain.models.Track
 import dev.jdtech.jellyfin.player.local.presentation.PlayerAction
@@ -57,6 +59,7 @@ import dev.jdtech.jellyfin.ui.components.player.VideoPlayerOverlay
 import dev.jdtech.jellyfin.ui.components.player.VideoPlayerSeeker
 import dev.jdtech.jellyfin.ui.components.player.VideoPlayerState
 import dev.jdtech.jellyfin.ui.components.player.rememberVideoPlayerState
+import dev.jdtech.jellyfin.utils.applySubtitleStyle
 import dev.jdtech.jellyfin.utils.handleDPadKeyEvents
 import java.util.Locale
 import java.util.UUID
@@ -178,6 +181,12 @@ fun PlayerScreen(
     ) {
         AndroidView(
             factory = { context ->
+                val appPreferences =
+                    EntryPointAccessors.fromApplication(
+                            context.applicationContext,
+                            SubtitleStyleEntryPoint::class.java,
+                        )
+                        .appPreferences()
                 PlayerView(context).also { playerView ->
                     playerView.player = viewModel.player
                     playerView.useController = false
@@ -189,6 +198,9 @@ fun PlayerScreen(
                     playerView.setBackgroundColor(
                         context.resources.getColor(android.R.color.black, context.theme)
                     )
+                    // Apply user-configured subtitle appearance. PlayerView creates its own
+                    // SubtitleView when useController = false, exposed via subtitleView.
+                    playerView.subtitleView?.applySubtitleStyle(appPreferences)
                 }
             },
             update = {

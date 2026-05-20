@@ -15,5 +15,7 @@ sealed interface SettingsEvent {
 
     data class LaunchIntent(val intent: Intent) : SettingsEvent
 
+    data object NavigateToSubtitleStyle : SettingsEvent
+
     data object RestartActivity : SettingsEvent
 }
