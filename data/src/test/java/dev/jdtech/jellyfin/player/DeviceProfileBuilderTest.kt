@@ -2,6 +2,7 @@ package dev.jdtech.jellyfin.player
 
 import org.jellyfin.sdk.model.api.MediaStreamProtocol
 import org.jellyfin.sdk.model.api.ProfileConditionValue
+import org.jellyfin.sdk.model.api.SubtitleDeliveryMethod
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -102,6 +103,34 @@ class DeviceProfileBuilderTest {
             profile.directPlayProfiles.any { it.videoCodec?.contains("hevc") == true },
         )
         assertTrue(profile.codecProfiles.none { it.codec == "hevc" })
+    }
+
+    @Test
+    fun `image-based subtitle formats are deliverable embedded and external`() {
+        val probed = ProbedCodecs(
+            videoCodecProfiles = mapOf("h264" to setOf("high")),
+            audioCodecs = setOf("aac"),
+        )
+
+        val subtitleProfiles = DeviceProfileBuilder.buildDeviceProfile(probed).subtitleProfiles
+
+        // PGS (BluRay sup), DVDSub (VobSub), DVB are all decoded natively by media3
+        // and must be advertised as deliverable both embedded in the container and as
+        // sidecar files, so the server never bitmap-transcodes them to text.
+        for (format in listOf("pgssub", "dvdsub", "dvbsub")) {
+            assertTrue(
+                "$format must be deliverable embedded",
+                subtitleProfiles.any {
+                    it.format == format && it.method == SubtitleDeliveryMethod.EMBED
+                },
+            )
+            assertTrue(
+                "$format must be deliverable as external sidecar",
+                subtitleProfiles.any {
+                    it.format == format && it.method == SubtitleDeliveryMethod.EXTERNAL
+                },
+            )
+        }
     }
 
     @Test

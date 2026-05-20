@@ -184,8 +184,14 @@ class DeviceProfileBuilder {
         private val FORCED_AUDIO_CODECS =
             setOf(*PCM_CODECS, "alac", "aac", "ac3", "eac3", "dts", "mlp", "truehd")
 
-        private val EXO_EMBEDDED_SUBTITLES = arrayOf("dvbsub", "pgssub", "srt", "subrip", "ttml", "ass", "ssa")
-        private val EXO_EXTERNAL_SUBTITLES = arrayOf("srt", "subrip", "ttml", "vtt", "webvtt", "ass", "ssa")
+        // Image-based subtitle formats decoded natively by media3 (>= 1.5):
+        // PGS (BluRay), DVDSub/VobSub (DVD), DVB (broadcast). Advertised for both
+        // embedded and external delivery so the server skips a costly bitmap-to-text
+        // transcode when the user enables one of these subtitle tracks.
+        private val EXO_EMBEDDED_SUBTITLES =
+            arrayOf("dvbsub", "dvdsub", "pgssub", "srt", "subrip", "ttml", "ass", "ssa")
+        private val EXO_EXTERNAL_SUBTITLES =
+            arrayOf("dvbsub", "dvdsub", "pgssub", "srt", "subrip", "ttml", "vtt", "webvtt", "ass", "ssa")
 
         /**
          * Video range types that may be direct-played. Every Dolby Vision range
