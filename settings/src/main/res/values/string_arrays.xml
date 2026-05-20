@@ -116,4 +116,14 @@
         <item>#FFFFFF00</item>
         <item>#FFFF0000</item>
     </string-array>
+    <string-array name="media_segments_action">
+        <item>@string/media_segments_action_skip</item>
+        <item>@string/media_segments_action_ask</item>
+        <item>@string/media_segments_action_ignore</item>
+    </string-array>
+    <string-array name="media_segments_action_values">
+        <item>SKIP</item>
+        <item>ASK</item>
+        <item>IGNORE</item>
+    </string-array>
 </resources>

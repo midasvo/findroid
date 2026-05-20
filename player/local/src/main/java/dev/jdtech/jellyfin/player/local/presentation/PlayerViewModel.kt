@@ -21,6 +21,7 @@ import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.jdtech.jellyfin.models.FindroidSegment
 import dev.jdtech.jellyfin.models.FindroidSegmentType
+import dev.jdtech.jellyfin.models.MediaSegmentAction
 import dev.jdtech.jellyfin.player.core.domain.models.PlayerChapter
 import dev.jdtech.jellyfin.player.core.domain.models.PlayerItem
 import dev.jdtech.jellyfin.player.core.domain.models.Trickplay
@@ -112,6 +113,12 @@ constructor(
     private var segmentsAutoSkipTypes: Set<String> = emptySet()
     private var segmentsAutoSkipMode: String = "always"
 
+    // Per-type tri-state action (SKIP / ASK / IGNORE) — issue #12. This is the
+    // primary input to updateCurrentSegment; the legacy global toggles above
+    // are still honoured as a fallback so users who only customised those keep
+    // their existing behaviour after upgrading.
+    private var segmentsActions: Map<FindroidSegmentType, MediaSegmentAction> = emptyMap()
+
     var playbackSpeed: Float = 1f
 
     var isInPictureInPictureMode: Boolean = false
@@ -149,6 +156,32 @@ constructor(
             appPreferences.getValue(appPreferences.playerMediaSegmentsAutoSkipType)
         segmentsAutoSkipMode =
             appPreferences.getValue(appPreferences.playerMediaSegmentsAutoSkipMode)
+
+        // Resolve the per-type tri-state preference. fromPreferenceValue is
+        // tolerant so a corrupted SharedPreferences string falls back to a sane
+        // default instead of crashing on enum lookup.
+        segmentsActions = mapOf(
+            FindroidSegmentType.INTRO to MediaSegmentAction.fromPreferenceValue(
+                appPreferences.getValue(appPreferences.playerMediaSegmentsIntroAction),
+                default = MediaSegmentAction.ASK,
+            ),
+            FindroidSegmentType.OUTRO to MediaSegmentAction.fromPreferenceValue(
+                appPreferences.getValue(appPreferences.playerMediaSegmentsOutroAction),
+                default = MediaSegmentAction.ASK,
+            ),
+            FindroidSegmentType.RECAP to MediaSegmentAction.fromPreferenceValue(
+                appPreferences.getValue(appPreferences.playerMediaSegmentsRecapAction),
+                default = MediaSegmentAction.ASK,
+            ),
+            FindroidSegmentType.PREVIEW to MediaSegmentAction.fromPreferenceValue(
+                appPreferences.getValue(appPreferences.playerMediaSegmentsPreviewAction),
+                default = MediaSegmentAction.IGNORE,
+            ),
+            FindroidSegmentType.COMMERCIAL to MediaSegmentAction.fromPreferenceValue(
+                appPreferences.getValue(appPreferences.playerMediaSegmentsCommercialAction),
+                default = MediaSegmentAction.IGNORE,
+            ),
+        )
 
         val audioAttributes =
             AudioAttributes.Builder()
@@ -355,27 +388,74 @@ constructor(
 
             Timber.tag("SegmentInfo").d("currentSegment: %s", currentSegment)
 
-            if (
-                segmentsAutoSkip &&
-                    segmentsAutoSkipTypes.contains(currentSegment.type.toString()) &&
-                    (segmentsAutoSkipMode == Constants.PlayerMediaSegmentsAutoSkip.ALWAYS ||
-                        (segmentsAutoSkipMode == Constants.PlayerMediaSegmentsAutoSkip.PIP &&
-                            isInPictureInPictureMode))
-            ) {
-                // Auto Skip segment
-                skipSegment(currentSegment)
-            } else if (segmentsSkipButtonTypes.contains(currentSegment.type.toString())) {
-                // Skip Button segment
-                _uiState.update {
-                    it.copy(
-                        currentSegment = currentSegment,
-                        currentSkipButtonStringRes = getSkipButtonTextStringId(currentSegment),
-                    )
+            when (resolveSegmentAction(currentSegment)) {
+                MediaSegmentAction.SKIP -> {
+                    // Auto Skip segment. The legacy `auto skip mode` (always vs
+                    // PIP-only) is still respected — if the user picked PIP-only
+                    // and we are not in PiP, fall back to showing the ASK
+                    // button instead of nothing, since they clearly want to
+                    // skip the segment in some form.
+                    val pipOnly =
+                        segmentsAutoSkipMode == Constants.PlayerMediaSegmentsAutoSkip.PIP
+                    if (!pipOnly || isInPictureInPictureMode) {
+                        skipSegment(currentSegment)
+                    } else {
+                        _uiState.update {
+                            it.copy(
+                                currentSegment = currentSegment,
+                                currentSkipButtonStringRes =
+                                    getSkipButtonTextStringId(currentSegment),
+                            )
+                        }
+                    }
                 }
-            } else {
-                _uiState.update { it.copy(currentSegment = null) }
+                MediaSegmentAction.ASK -> {
+                    // Show the skip button; the UI handles its own auto-hide
+                    // after `segmentsSkipButtonDuration` seconds.
+                    _uiState.update {
+                        it.copy(
+                            currentSegment = currentSegment,
+                            currentSkipButtonStringRes = getSkipButtonTextStringId(currentSegment),
+                        )
+                    }
+                }
+                MediaSegmentAction.IGNORE -> {
+                    if (_uiState.value.currentSegment != null) {
+                        _uiState.update { it.copy(currentSegment = null) }
+                    }
+                }
             }
         }
+    }
+
+    /**
+     * Resolve the configured [MediaSegmentAction] for the segment that the
+     * player is currently inside.
+     *
+     * Priority:
+     *  1. The per-type preference (issue #12).
+     *  2. Legacy global toggles — autoSkip+type set, then skipButton+type set —
+     *     for users who never touched the new per-type controls.
+     *  3. [MediaSegmentAction.IGNORE] as the safe default.
+     */
+    private fun resolveSegmentAction(segment: FindroidSegment): MediaSegmentAction {
+        segmentsActions[segment.type]?.let { return it }
+
+        val typeKey = segment.type.toString()
+        return when {
+            segmentsAutoSkip && segmentsAutoSkipTypes.contains(typeKey) -> MediaSegmentAction.SKIP
+            segmentsSkipButton && segmentsSkipButtonTypes.contains(typeKey) -> MediaSegmentAction.ASK
+            else -> MediaSegmentAction.IGNORE
+        }
+    }
+
+    /**
+     * True if at least one segment type is set to SKIP or ASK — used by the
+     * activity to decide whether to start the per-second segment poller.
+     */
+    fun shouldPollSegments(): Boolean {
+        if (segmentsAutoSkip || segmentsSkipButton) return true
+        return segmentsActions.values.any { it != MediaSegmentAction.IGNORE }
     }
 
     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -408,7 +488,7 @@ constructor(
 
                         repository.postPlaybackStart(item.itemId)
 
-                        if (segmentsSkipButton || segmentsAutoSkip) {
+                        if (shouldPollSegments()) {
                             getSegments(item.itemId)
                         }
 

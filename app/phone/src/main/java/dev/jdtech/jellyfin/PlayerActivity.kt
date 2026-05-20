@@ -277,10 +277,7 @@ class PlayerActivity : BasePlayerActivity() {
                     }
                 }
 
-                if (
-                    appPreferences.getValue(appPreferences.playerMediaSegmentsSkipButton) ||
-                        appPreferences.getValue(appPreferences.playerMediaSegmentsAutoSkip)
-                ) {
+                if (viewModel.shouldPollSegments()) {
                     launch {
                         while (true) {
                             viewModel.updateCurrentSegment()

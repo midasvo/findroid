@@ -79,6 +79,30 @@ class AppPreferences @Inject constructor(val sharedPreferences: SharedPreference
     val stillWatchingPromptTimeoutSeconds =
         Preference("pref_player_still_watching_prompt_timeout_seconds", 30)
 
+    // Player - Media Segments per-type action (SKIP / ASK / IGNORE)
+    //
+    // Stored as nullable strings so DataStore-style absent-value semantics work
+    // and PreferenceSelect can render them without bespoke handling. The
+    // defaults mirror the tri-state UX introduced in jellyfin-androidtv v0.18.0:
+    // intro / outro / recap default to ASK (offer a skip button), preview /
+    // commercial default to IGNORE so the player does not interrupt them. The
+    // PlayerViewModel falls back to these same defaults when the stored value
+    // is null or malformed.
+    val playerMediaSegmentsIntroAction
+        get() = Preference<String?>("pref_player_media_segments_intro_action", "ASK")
+
+    val playerMediaSegmentsOutroAction
+        get() = Preference<String?>("pref_player_media_segments_outro_action", "ASK")
+
+    val playerMediaSegmentsRecapAction
+        get() = Preference<String?>("pref_player_media_segments_recap_action", "ASK")
+
+    val playerMediaSegmentsPreviewAction
+        get() = Preference<String?>("pref_player_media_segments_preview_action", "IGNORE")
+
+    val playerMediaSegmentsCommercialAction
+        get() = Preference<String?>("pref_player_media_segments_commercial_action", "IGNORE")
+
     // Player - trickplay
     val playerTrickplay = Preference("pref_player_trickplay", true)
 
