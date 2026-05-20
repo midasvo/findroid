@@ -25,4 +25,8 @@
     <string name="player_controls_skip_preview">Skip preview</string>
     <string name="player_controls_skip_commercial">Skip commercial</string>
     <string name="player_controls_skip_unknown">Skip</string>
+    <string name="still_watching_title">Are you still watching?</string>
+    <string name="still_watching_message">Playback will pause if there\'s no response.</string>
+    <string name="still_watching_continue">Yes, keep playing</string>
+    <string name="still_watching_pause">Stop</string>
 </resources>

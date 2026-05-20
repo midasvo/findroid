@@ -39,6 +39,7 @@ import dev.jdtech.jellyfin.player.local.presentation.PlayerEvents
 import dev.jdtech.jellyfin.player.local.presentation.PlayerViewModel
 import dev.jdtech.jellyfin.presentation.player.ChapterListDialogFragment
 import dev.jdtech.jellyfin.presentation.player.SpeedSelectionDialogFragment
+import dev.jdtech.jellyfin.presentation.player.StillWatchingDialogFragment
 import dev.jdtech.jellyfin.presentation.player.TrackSelectionDialogFragment
 import dev.jdtech.jellyfin.settings.domain.AppPreferences
 import dev.jdtech.jellyfin.utils.PlayerGestureHelper
@@ -64,6 +65,8 @@ class PlayerActivity : BasePlayerActivity() {
     private var skipButtonTimeoutExpired: Boolean = true
 
     private lateinit var skipSegmentButton: Button
+
+    private var stillWatchingDialog: StillWatchingDialogFragment? = null
 
     private val isPipSupported by lazy {
         // Check if device has PiP feature
@@ -219,6 +222,18 @@ class PlayerActivity : BasePlayerActivity() {
                                 speedButton.imageAlpha = 255
                                 pipButton.isEnabled = true
                                 pipButton.imageAlpha = 255
+                            }
+
+                            // Still watching prompt — show / hide a dialog driven by the
+                            // ViewModel. The ViewModel is the source of truth for the timeout;
+                            // the dialog is purely a render of the state.
+                            if (showStillWatching && stillWatchingDialog == null) {
+                                val dialog = StillWatchingDialogFragment(viewModel)
+                                stillWatchingDialog = dialog
+                                dialog.show(supportFragmentManager, "stillwatchingdialog")
+                            } else if (!showStillWatching && stillWatchingDialog != null) {
+                                stillWatchingDialog?.dismissAllowingStateLoss()
+                                stillWatchingDialog = null
                             }
                         }
                     }
