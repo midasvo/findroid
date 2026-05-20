@@ -13,6 +13,9 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import timber.log.Timber
 
+/** Max number of per-sheet load mutexes to keep around. See [TrickplayLoader.loadMutexes]. */
+private const val MUTEX_CACHE_SIZE = 8
+
 /**
  * Lazily decodes trickplay sprite-sheets on demand and crops out the right cell for the
  * requested playback position. Sprite-sheets are decoded once and held in an LRU cache,
@@ -44,24 +47,20 @@ class TrickplayLoader(
     private val maxSheetIndex =
         if (thumbnailCount <= 0) 0 else (thumbnailCount - 1) / tilesPerSheet
 
-    private val sheetCache: LruCache<Int, Bitmap> =
-        object : LruCache<Int, Bitmap>(cacheSize) {
-            override fun entryRemoved(
-                evicted: Boolean,
-                key: Int,
-                oldValue: Bitmap,
-                newValue: Bitmap?,
-            ) {
-                if (evicted && !oldValue.isRecycled) {
-                    oldValue.recycle()
-                }
-            }
-        }
+    // We deliberately do not call recycle() in entryRemoved. tileAt holds a reference to
+    // the evicted bitmap and reads from it on Dispatchers.Default after the LruCache lookup;
+    // recycling on the main thread mid-read would crash with
+    // "Canvas: trying to use a recycled bitmap". The cache is small (a handful of sheets,
+    // a few MB) and Bitmap pixels are GC-managed, so we let the GC reclaim evicted entries.
+    private val sheetCache: LruCache<Int, Bitmap> = LruCache(cacheSize)
 
     // Per-sheet load mutex prevents two concurrent scrub frames from kicking off two
     // identical network fetches for the same sprite-sheet. Keyed by sheet index.
-    private val loadMutexes = mutableMapOf<Int, Mutex>()
-    private val mutexesLock = Mutex()
+    //
+    // Bounded by [MUTEX_CACHE_SIZE] so rapid scrubbing across a long movie can't grow this
+    // map without bound. LruCache is already thread-safe so no extra synchronisation is
+    // needed; the per-mutex critical section in [loadSheet] handles the dedupe.
+    private val loadMutexes: LruCache<Int, Mutex> = LruCache(MUTEX_CACHE_SIZE)
 
     override suspend fun tileAt(positionMs: Long): Bitmap? {
         if (thumbnailCount <= 0 || interval <= 0) return null
@@ -86,8 +85,8 @@ class TrickplayLoader(
         }
 
         return withContext(Dispatchers.Default) {
-            // createBitmap copies the pixels — safe to keep around even when the sheet
-            // is later evicted and recycled.
+            // createBitmap copies the pixels into a fresh bitmap. The cropped tile is
+            // independent of the cached sheet, so it survives sheet eviction.
             Bitmap.createBitmap(sheet, offsetX, offsetY, width, height)
         }
     }
@@ -96,7 +95,11 @@ class TrickplayLoader(
         sheetCache.get(sheetIndex)?.takeIf { !it.isRecycled }?.let { return it }
         if (sheetIndex < 0 || sheetIndex > maxSheetIndex) return null
 
-        val mutex = mutexesLock.withLock { loadMutexes.getOrPut(sheetIndex) { Mutex() } }
+        // LruCache.get/put are synchronized internally; the "check then insert" race
+        // here at worst creates an extra unused Mutex that the LruCache will evict — the
+        // per-mutex critical section below still dedupes the actual network fetch.
+        val mutex =
+            loadMutexes.get(sheetIndex) ?: Mutex().also { loadMutexes.put(sheetIndex, it) }
 
         return mutex.withLock {
             // Double-check after acquiring the per-sheet mutex: another coroutine may
