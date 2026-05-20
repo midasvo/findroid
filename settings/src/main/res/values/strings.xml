@@ -108,4 +108,9 @@
     <string name="media_segments_type_outro">Outro</string>
     <string name="media_segments_type_intro">Intro</string>
     <string name="none">None</string>
+    <string name="export_device_profile">Export device profile</string>
+    <string name="export_device_profile_summary">A JSON snapshot of what this device tells the server it can play. Paste it into a bug report when something refuses to direct-play or transcodes when it shouldn\'t.</string>
+    <string name="export_device_profile_copy">Copy</string>
+    <string name="export_device_profile_copied">Device profile copied to clipboard</string>
+    <string name="export_device_profile_failed">Could not build device profile</string>
 </resources>

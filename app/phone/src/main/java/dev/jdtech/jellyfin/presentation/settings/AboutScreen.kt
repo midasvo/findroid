@@ -1,5 +1,9 @@
 package dev.jdtech.jellyfin.presentation.settings
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
@@ -21,11 +25,13 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -43,6 +49,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewScreenSizes
 import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mikepenz.aboutlibraries.ui.compose.android.produceLibraries
 import com.mikepenz.aboutlibraries.ui.compose.m3.LibrariesContainer
 import dev.jdtech.jellyfin.BuildConfig
@@ -51,10 +59,76 @@ import dev.jdtech.jellyfin.core.R as CoreR
 import dev.jdtech.jellyfin.presentation.theme.FindroidTheme
 import dev.jdtech.jellyfin.presentation.theme.spacings
 import dev.jdtech.jellyfin.settings.R as SettingsR
+import dev.jdtech.jellyfin.utils.ObserveAsEvents
+import dev.jdtech.jellyfin.viewmodels.AboutAction
+import dev.jdtech.jellyfin.viewmodels.AboutEvent
+import dev.jdtech.jellyfin.viewmodels.AboutState
+import dev.jdtech.jellyfin.viewmodels.AboutViewModel
+import dev.jdtech.jellyfin.viewmodels.ExportTarget
+import timber.log.Timber
+
+@Composable
+fun AboutScreen(
+    navigateBack: () -> Unit,
+    viewModel: AboutViewModel = hiltViewModel(),
+) {
+    val context = LocalContext.current
+    val state by viewModel.state.collectAsStateWithLifecycle()
+
+    ObserveAsEvents(viewModel.events) { event ->
+        when (event) {
+            is AboutEvent.ShareDeviceProfile -> shareJson(context, event.json)
+            is AboutEvent.CopyDeviceProfile -> {
+                copyToClipboard(context, event.json)
+                Toast.makeText(
+                    context,
+                    context.getString(SettingsR.string.export_device_profile_copied),
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
+            is AboutEvent.ExportFailed -> {
+                Timber.e(event.cause, "Failed to build device capability report")
+                Toast.makeText(
+                    context,
+                    context.getString(SettingsR.string.export_device_profile_failed),
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
+        }
+    }
+
+    AboutScreenLayout(
+        state = state,
+        navigateBack = navigateBack,
+        onShareDeviceProfile = {
+            viewModel.onAction(
+                AboutAction.OnExportDeviceProfile(
+                    findroidVersion = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                    findroidBuildType = BuildConfig.BUILD_TYPE,
+                    target = ExportTarget.Share,
+                ),
+            )
+        },
+        onCopyDeviceProfile = {
+            viewModel.onAction(
+                AboutAction.OnExportDeviceProfile(
+                    findroidVersion = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                    findroidBuildType = BuildConfig.BUILD_TYPE,
+                    target = ExportTarget.Clipboard,
+                ),
+            )
+        },
+    )
+}
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-fun AboutScreen(navigateBack: () -> Unit) {
+private fun AboutScreenLayout(
+    state: AboutState,
+    navigateBack: () -> Unit,
+    onShareDeviceProfile: () -> Unit,
+    onCopyDeviceProfile: () -> Unit,
+) {
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     val density = LocalDensity.current
@@ -153,6 +227,43 @@ fun AboutScreen(navigateBack: () -> Unit) {
                                     )
                                 }
                             }
+                            Spacer(Modifier.height(MaterialTheme.spacings.medium))
+                            HorizontalDivider()
+                            Spacer(Modifier.height(MaterialTheme.spacings.medium))
+                            Text(
+                                text = stringResource(SettingsR.string.export_device_profile),
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                            Spacer(Modifier.height(MaterialTheme.spacings.extraSmall))
+                            Text(
+                                text = stringResource(
+                                    SettingsR.string.export_device_profile_summary,
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(Modifier.height(MaterialTheme.spacings.small))
+                            Row(
+                                horizontalArrangement =
+                                    Arrangement.spacedBy(MaterialTheme.spacings.small)
+                            ) {
+                                FilledTonalButton(
+                                    onClick = onShareDeviceProfile,
+                                    enabled = !state.isExporting,
+                                ) {
+                                    Text(stringResource(CoreR.string.share))
+                                }
+                                OutlinedButton(
+                                    onClick = onCopyDeviceProfile,
+                                    enabled = !state.isExporting,
+                                ) {
+                                    Text(
+                                        stringResource(
+                                            SettingsR.string.export_device_profile_copy,
+                                        ),
+                                    )
+                                }
+                            }
                             Spacer(Modifier.height(MaterialTheme.spacings.small))
                         }
                     }
@@ -162,8 +273,34 @@ fun AboutScreen(navigateBack: () -> Unit) {
     }
 }
 
+private fun shareJson(context: Context, json: String) {
+    val sendIntent = Intent(Intent.ACTION_SEND).apply {
+        type = "application/json"
+        putExtra(Intent.EXTRA_SUBJECT, "Findroid device profile")
+        putExtra(Intent.EXTRA_TEXT, json)
+    }
+    try {
+        context.startActivity(Intent.createChooser(sendIntent, null))
+    } catch (e: Exception) {
+        Timber.e(e, "Failed to launch share intent for device profile")
+    }
+}
+
+private fun copyToClipboard(context: Context, json: String) {
+    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+    val clip = ClipData.newPlainText("Findroid device profile", json)
+    clipboard?.setPrimaryClip(clip)
+}
+
 @Composable
 @PreviewScreenSizes
-private fun AboutScreenPreview() {
-    FindroidTheme { AboutScreen(navigateBack = {}) }
+private fun AboutScreenLayoutPreview() {
+    FindroidTheme {
+        AboutScreenLayout(
+            state = AboutState(),
+            navigateBack = {},
+            onShareDeviceProfile = {},
+            onCopyDeviceProfile = {},
+        )
+    }
 }

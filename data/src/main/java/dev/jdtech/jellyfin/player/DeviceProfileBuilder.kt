@@ -69,6 +69,14 @@ class DeviceProfileBuilder {
     fun getDownloadProfile(transcodeDolbyVision: Boolean): DeviceProfile =
         if (transcodeDolbyVision) buildDownloadTranscodeProfile() else buildDirectPlayProfile()
 
+    /**
+     * The [MediaCodecList] probe result this builder was constructed with.
+     * Exposed so the diagnostic capability report can surface the raw codec
+     * advertising data alongside the assembled profile — see
+     * [DeviceCapabilityReportBuilder].
+     */
+    fun probedCodecsSnapshot(): ProbedCodecs = probedCodecs
+
     /** Probes the device's decoders via [MediaCodecList] (REGULAR_CODECS). */
     private fun probeCodecs(): ProbedCodecs {
         val videoCodecs: MutableMap<String, DeviceCodec.Video> = HashMap()
