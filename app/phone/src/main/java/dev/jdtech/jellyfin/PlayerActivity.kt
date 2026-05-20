@@ -472,6 +472,18 @@ class PlayerActivity : BasePlayerActivity() {
         } catch (_: IllegalArgumentException) {}
     }
 
+    override fun onDestroy() {
+        // Cancel both trickplay MainScopes so any in-flight tile fetches don't outlive the
+        // activity. onDestroy is the right hook here: previewScrubListener and
+        // playerGestureHelper are bound to this activity's view hierarchy (binding,
+        // playerView) and the listener is attached to a view-owned TimeBar, so they must
+        // survive across onStop/onStart (e.g. PiP, screen off) and are only safe to tear
+        // down when the activity itself is being destroyed.
+        previewScrubListener?.dispose()
+        playerGestureHelper?.dispose()
+        super.onDestroy()
+    }
+
     override fun onPictureInPictureModeChanged(
         isInPictureInPictureMode: Boolean,
         newConfig: Configuration,

@@ -36,6 +36,7 @@ import kotlin.math.abs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import timber.log.Timber
 
@@ -553,6 +554,15 @@ class PlayerGestureHelper(
             return true
         }
         return false
+    }
+
+    /**
+     * Cancels the trickplay coroutine scope so pending tile fetches don't outlive the host
+     * activity. Call from [PlayerActivity.onDestroy]; safe to call multiple times.
+     */
+    fun dispose() {
+        trickplayLoaderJob?.cancel()
+        trickplayScope.cancel()
     }
 
     fun updateTrickplayImage(position: Long) {
