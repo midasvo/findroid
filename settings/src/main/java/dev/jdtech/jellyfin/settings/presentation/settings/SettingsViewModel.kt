@@ -239,6 +239,103 @@ class SettingsViewModel @Inject constructor(
                                                             )
                                                         }
                                                     },
+                                                    // Surfaced for TV, which doesn't navigate to
+                                                    // the phone's custom SubtitleStyleScreen and
+                                                    // instead renders these as a standard list.
+                                                    // The phone screen continues to use the
+                                                    // NavigateToSubtitleStyle event path.
+                                                    nestedPreferenceGroups =
+                                                        listOf(
+                                                            PreferenceGroup(
+                                                                preferences =
+                                                                    listOf(
+                                                                        PreferenceSelect(
+                                                                            nameStringResource =
+                                                                                R.string
+                                                                                    .subtitle_foreground_color,
+                                                                            iconDrawableId =
+                                                                                R.drawable
+                                                                                    .ic_palette,
+                                                                            backendPreference =
+                                                                                appPreferences
+                                                                                    .subtitleForegroundColor,
+                                                                            options =
+                                                                                R.array
+                                                                                    .subtitle_foreground_colors,
+                                                                            optionValues =
+                                                                                R.array
+                                                                                    .subtitle_foreground_color_values,
+                                                                        ),
+                                                                        PreferenceSelect(
+                                                                            nameStringResource =
+                                                                                R.string
+                                                                                    .subtitle_background_color,
+                                                                            backendPreference =
+                                                                                appPreferences
+                                                                                    .subtitleBackgroundColor,
+                                                                            options =
+                                                                                R.array
+                                                                                    .subtitle_background_colors,
+                                                                            optionValues =
+                                                                                R.array
+                                                                                    .subtitle_background_color_values,
+                                                                        ),
+                                                                        PreferenceSelect(
+                                                                            nameStringResource =
+                                                                                R.string
+                                                                                    .subtitle_edge_type,
+                                                                            backendPreference =
+                                                                                appPreferences
+                                                                                    .subtitleEdgeType,
+                                                                            options =
+                                                                                R.array
+                                                                                    .subtitle_edge_types,
+                                                                            optionValues =
+                                                                                R.array
+                                                                                    .subtitle_edge_type_values,
+                                                                        ),
+                                                                        PreferenceSelect(
+                                                                            nameStringResource =
+                                                                                R.string
+                                                                                    .subtitle_edge_color,
+                                                                            backendPreference =
+                                                                                appPreferences
+                                                                                    .subtitleEdgeColor,
+                                                                            options =
+                                                                                R.array
+                                                                                    .subtitle_edge_colors,
+                                                                            optionValues =
+                                                                                R.array
+                                                                                    .subtitle_edge_color_values,
+                                                                        ),
+                                                                        PreferenceSelect(
+                                                                            nameStringResource =
+                                                                                R.string
+                                                                                    .subtitle_font_family,
+                                                                            backendPreference =
+                                                                                appPreferences
+                                                                                    .subtitleFontFamily,
+                                                                            options =
+                                                                                R.array
+                                                                                    .subtitle_font_families,
+                                                                            optionValues =
+                                                                                R.array
+                                                                                    .subtitle_font_family_values,
+                                                                        ),
+                                                                        PreferenceIntInput(
+                                                                            nameStringResource =
+                                                                                R.string
+                                                                                    .subtitle_font_scale,
+                                                                            backendPreference =
+                                                                                appPreferences
+                                                                                    .subtitleFontScale,
+                                                                            suffixRes =
+                                                                                R.string
+                                                                                    .subtitle_font_scale_suffix,
+                                                                        ),
+                                                                    )
+                                                            )
+                                                        ),
                                                 )
                                             )
                                     ),
