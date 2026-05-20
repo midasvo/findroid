@@ -521,6 +521,46 @@ class SettingsViewModel @Inject constructor(
                                             ),
                                     ),
                                     PreferenceGroup(
+                                        nameStringResource = R.string.pref_player_still_watching,
+                                        preferences =
+                                            listOf(
+                                                PreferenceIntInput(
+                                                    nameStringResource =
+                                                        R.string
+                                                            .pref_player_still_watching_after_episodes,
+                                                    descriptionStringRes =
+                                                        R.string
+                                                            .pref_player_still_watching_after_episodes_summary,
+                                                    backendPreference =
+                                                        appPreferences.stillWatchingAfterEpisodes,
+                                                    suffixRes = R.string.episodes,
+                                                ),
+                                                PreferenceIntInput(
+                                                    nameStringResource =
+                                                        R.string
+                                                            .pref_player_still_watching_after_minutes,
+                                                    descriptionStringRes =
+                                                        R.string
+                                                            .pref_player_still_watching_after_minutes_summary,
+                                                    backendPreference =
+                                                        appPreferences.stillWatchingAfterMinutes,
+                                                    suffixRes = R.string.minutes,
+                                                ),
+                                                PreferenceIntInput(
+                                                    nameStringResource =
+                                                        R.string
+                                                            .pref_player_still_watching_prompt_timeout,
+                                                    descriptionStringRes =
+                                                        R.string
+                                                            .pref_player_still_watching_prompt_timeout_summary,
+                                                    backendPreference =
+                                                        appPreferences
+                                                            .stillWatchingPromptTimeoutSeconds,
+                                                    suffixRes = R.string.seconds,
+                                                ),
+                                            ),
+                                    ),
+                                    PreferenceGroup(
                                         nameStringResource = R.string.picture_in_picture,
                                         preferences =
                                             listOf(

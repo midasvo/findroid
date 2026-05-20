@@ -36,4 +36,6 @@ dependencies {
     implementation(libs.jellyfin.core)
     implementation(libs.libmpv)
     implementation(libs.timber)
+
+    testImplementation(libs.junit)
 }

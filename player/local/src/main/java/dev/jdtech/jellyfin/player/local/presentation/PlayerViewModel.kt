@@ -26,6 +26,7 @@ import dev.jdtech.jellyfin.player.core.domain.models.PlayerItem
 import dev.jdtech.jellyfin.player.core.domain.models.Trickplay
 import dev.jdtech.jellyfin.player.local.R
 import dev.jdtech.jellyfin.player.local.domain.PlaylistManager
+import dev.jdtech.jellyfin.player.local.domain.StillWatchingTracker
 import dev.jdtech.jellyfin.player.local.mpv.MPVPlayer
 import dev.jdtech.jellyfin.repository.JellyfinRepository
 import dev.jdtech.jellyfin.settings.domain.AppPreferences
@@ -36,7 +37,9 @@ import kotlin.math.ceil
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -68,6 +71,8 @@ constructor(
                 currentTrickplay = null,
                 currentChapters = emptyList(),
                 fileLoaded = false,
+                showStillWatching = false,
+                stillWatchingTimeoutSeconds = 30,
             )
         )
     val uiState = _uiState.asStateFlow()
@@ -87,6 +92,8 @@ constructor(
         val currentTrickplay: Trickplay?,
         val currentChapters: List<PlayerChapter>,
         val fileLoaded: Boolean,
+        val showStillWatching: Boolean,
+        val stillWatchingTimeoutSeconds: Int,
     )
 
     private var items: MutableList<PlayerItem> = mutableListOf()
@@ -109,7 +116,29 @@ constructor(
 
     var isInPictureInPictureMode: Boolean = false
 
+    // "Are you still watching?" — prompt fires after N consecutive auto-advanced episodes
+    // OR M minutes without a user touch. Either threshold can be disabled by setting it
+    // to 0 in settings.
+    private val stillWatchingTracker: StillWatchingTracker
+    private val stillWatchingPromptTimeoutSeconds: Int
+    private var stillWatchingTimeoutJob: Job? = null
+
     init {
+        val episodes = appPreferences.getValue(appPreferences.stillWatchingAfterEpisodes)
+        val minutes = appPreferences.getValue(appPreferences.stillWatchingAfterMinutes)
+        stillWatchingTracker =
+            StillWatchingTracker(
+                autoAdvanceThreshold = episodes.coerceAtLeast(0),
+                inactivityThresholdMs =
+                    if (minutes <= 0) StillWatchingTracker.OFF_MS else minutes * 60_000L,
+            )
+        stillWatchingTracker.reset(nowMs = System.currentTimeMillis())
+        stillWatchingPromptTimeoutSeconds =
+            appPreferences
+                .getValue(appPreferences.stillWatchingPromptTimeoutSeconds)
+                .coerceAtLeast(5)
+        _uiState.update { it.copy(stillWatchingTimeoutSeconds = stillWatchingPromptTimeoutSeconds) }
+
         segmentsSkipButton = appPreferences.getValue(appPreferences.playerMediaSegmentsSkipButton)
         segmentsSkipButtonTypes =
             appPreferences.getValue(appPreferences.playerMediaSegmentsSkipButtonType)
@@ -437,10 +466,63 @@ constructor(
                         Timber.e(e)
                     }
                 }
+
+                // "Are you still watching?" — only intercept if there's another item to advance
+                // to. If this was the last item, fall through to the normal seek+play (which
+                // becomes a no-op for seek and the player will hit STATE_ENDED → NavigateBack).
+                if (
+                    player.hasNextMediaItem() &&
+                        stillWatchingTracker.onAutoAdvance(nowMs = System.currentTimeMillis())
+                ) {
+                    showStillWatchingPrompt()
+                    return@launch
+                }
                 player.seekToNextMediaItem()
                 player.play()
             }
         }
+    }
+
+    private fun showStillWatchingPrompt() {
+        Timber.d("Still-watching threshold tripped — prompting user")
+        _uiState.update { it.copy(showStillWatching = true) }
+        stillWatchingTimeoutJob?.cancel()
+        stillWatchingTimeoutJob =
+            viewModelScope.launch {
+                delay(stillWatchingPromptTimeoutSeconds * 1000L)
+                // Timeout: user is gone. Hide the dialog and leave the player paused. The current
+                // item's progress was already reported above (postPlaybackStop with the actual
+                // position), so the season won't be marked watched.
+                _uiState.update { it.copy(showStillWatching = false) }
+                Timber.d("Still-watching prompt timed out — staying paused")
+            }
+    }
+
+    /** Called when the user confirms the still-watching prompt. Resumes auto-advance. */
+    fun acknowledgeStillWatching() {
+        stillWatchingTimeoutJob?.cancel()
+        stillWatchingTimeoutJob = null
+        stillWatchingTracker.onUserInteraction(nowMs = System.currentTimeMillis())
+        _uiState.update { it.copy(showStillWatching = false) }
+        if (player.hasNextMediaItem()) {
+            player.seekToNextMediaItem()
+            player.play()
+        }
+    }
+
+    /** Called when the user dismisses the still-watching prompt without confirming. */
+    fun dismissStillWatching() {
+        stillWatchingTimeoutJob?.cancel()
+        stillWatchingTimeoutJob = null
+        _uiState.update { it.copy(showStillWatching = false) }
+    }
+
+    /**
+     * Reset the still-watching counters. Call from every user-driven action — touches,
+     * gestures, button presses, dialog choices.
+     */
+    fun markUserInteraction() {
+        stillWatchingTracker.onUserInteraction(nowMs = System.currentTimeMillis())
     }
 
     override fun onPlayerError(error: PlaybackException) {
@@ -476,6 +558,7 @@ constructor(
     }
 
     fun switchToTrack(trackType: @C.TrackType Int, index: Int) {
+        markUserInteraction()
         // Index -1 equals disable track
         if (index == -1) {
             player.trackSelectionParameters =
@@ -503,6 +586,7 @@ constructor(
     }
 
     fun selectSpeed(speed: Float) {
+        markUserInteraction()
         player.setPlaybackSpeed(speed)
         playbackSpeed = speed
     }
@@ -563,6 +647,7 @@ constructor(
     }
 
     fun skipSegment(segment: FindroidSegment) {
+        markUserInteraction()
         if (shouldSkipToNextEpisode(segment)) {
             player.seekToNextMediaItem()
         } else {
@@ -700,6 +785,7 @@ constructor(
      * @return the [PlayerChapter] which has been sought to
      */
     fun seekToNextChapter(): PlayerChapter? {
+        markUserInteraction()
         return getNextChapterIndex()?.let { seekToChapter(it) }
     }
 
@@ -710,12 +796,27 @@ constructor(
      * @return the [PlayerChapter] which has been sought to
      */
     fun seekToPreviousChapter(): PlayerChapter? {
+        markUserInteraction()
         return getPreviousChapterIndex()?.let { seekToChapter(it) }
     }
 
     override fun onIsPlayingChanged(isPlaying: Boolean) {
         super.onIsPlayingChanged(isPlaying)
         eventsChannel.trySend(PlayerEvents.IsPlayingChanged(isPlaying))
+    }
+
+    override fun onPositionDiscontinuity(
+        oldPosition: Player.PositionInfo,
+        newPosition: Player.PositionInfo,
+        reason: Int,
+    ) {
+        super.onPositionDiscontinuity(oldPosition, newPosition, reason)
+        // Player.DISCONTINUITY_REASON_SEEK fires for user-driven seeks (controls + gestures
+        // both end up here). Auto-transitions go through onMediaItemTransition with a separate
+        // reason, so we don't accidentally pick those up.
+        if (reason == Player.DISCONTINUITY_REASON_SEEK) {
+            markUserInteraction()
+        }
     }
 }
 

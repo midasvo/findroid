@@ -72,6 +72,13 @@ class AppPreferences @Inject constructor(val sharedPreferences: SharedPreference
     val playerMediaSegmentsNextEpisodeThreshold
         get() = Preference("pref_player_media_segments_next_episode_threshold", 5_000L)
 
+    // Player - "Are you still watching?" inactivity prompt.
+    // 0 disables the corresponding axis. Either axis tripping fires the prompt.
+    val stillWatchingAfterEpisodes = Preference("pref_player_still_watching_after_episodes", 3)
+    val stillWatchingAfterMinutes = Preference("pref_player_still_watching_after_minutes", 90)
+    val stillWatchingPromptTimeoutSeconds =
+        Preference("pref_player_still_watching_prompt_timeout_seconds", 30)
+
     // Player - trickplay
     val playerTrickplay = Preference("pref_player_trickplay", true)
 

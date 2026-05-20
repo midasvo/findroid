@@ -584,6 +584,11 @@ class PlayerGestureHelper(
         @Suppress("ClickableViewAccessibility")
         playerView.setOnTouchListener { _, event ->
             if (playerView.useController) {
+                // Any touch counts as "the viewer is still here" for the still-watching prompt.
+                // ACTION_DOWN only — repeated samples during a swipe gesture would be noise.
+                if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                    activity.viewModel.markUserInteraction()
+                }
                 currentNumberOfPointers = event.pointerCount
                 when (event.pointerCount) {
                     1 -> {
