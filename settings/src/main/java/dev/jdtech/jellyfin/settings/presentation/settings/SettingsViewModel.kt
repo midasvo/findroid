@@ -582,6 +582,65 @@ class SettingsViewModel @Inject constructor(
                                                             .playerMediaSegmentsNextEpisodeThreshold,
                                                     suffixRes = R.string.ms,
                                                 ),
+                                                // Per-type tri-state action (issue #12). Lives in
+                                                // the same group as the legacy global toggles so
+                                                // users find both in one place; the per-type
+                                                // choice wins when both are set.
+                                                PreferenceSelect(
+                                                    nameStringResource =
+                                                        R.string
+                                                            .pref_player_media_segments_action_intro,
+                                                    backendPreference =
+                                                        appPreferences
+                                                            .playerMediaSegmentsIntroAction,
+                                                    options = R.array.media_segments_action,
+                                                    optionValues =
+                                                        R.array.media_segments_action_values,
+                                                ),
+                                                PreferenceSelect(
+                                                    nameStringResource =
+                                                        R.string
+                                                            .pref_player_media_segments_action_outro,
+                                                    backendPreference =
+                                                        appPreferences
+                                                            .playerMediaSegmentsOutroAction,
+                                                    options = R.array.media_segments_action,
+                                                    optionValues =
+                                                        R.array.media_segments_action_values,
+                                                ),
+                                                PreferenceSelect(
+                                                    nameStringResource =
+                                                        R.string
+                                                            .pref_player_media_segments_action_recap,
+                                                    backendPreference =
+                                                        appPreferences
+                                                            .playerMediaSegmentsRecapAction,
+                                                    options = R.array.media_segments_action,
+                                                    optionValues =
+                                                        R.array.media_segments_action_values,
+                                                ),
+                                                PreferenceSelect(
+                                                    nameStringResource =
+                                                        R.string
+                                                            .pref_player_media_segments_action_preview,
+                                                    backendPreference =
+                                                        appPreferences
+                                                            .playerMediaSegmentsPreviewAction,
+                                                    options = R.array.media_segments_action,
+                                                    optionValues =
+                                                        R.array.media_segments_action_values,
+                                                ),
+                                                PreferenceSelect(
+                                                    nameStringResource =
+                                                        R.string
+                                                            .pref_player_media_segments_action_commercial,
+                                                    backendPreference =
+                                                        appPreferences
+                                                            .playerMediaSegmentsCommercialAction,
+                                                    options = R.array.media_segments_action,
+                                                    optionValues =
+                                                        R.array.media_segments_action_values,
+                                                ),
                                             ),
                                     ),
                                     PreferenceGroup(

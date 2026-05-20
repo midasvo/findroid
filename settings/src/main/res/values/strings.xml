@@ -136,6 +136,16 @@
     <string name="media_segments_type_recap">Recap</string>
     <string name="media_segments_type_outro">Outro</string>
     <string name="media_segments_type_intro">Intro</string>
+    <string name="pref_player_media_segments_per_type_action">Per-type segment action</string>
+    <string name="pref_player_media_segments_per_type_action_summary">Pick what happens for each segment type: skip automatically, ask before skipping, or do nothing</string>
+    <string name="pref_player_media_segments_action_intro">Intros</string>
+    <string name="pref_player_media_segments_action_outro">Outros</string>
+    <string name="pref_player_media_segments_action_recap">Recaps</string>
+    <string name="pref_player_media_segments_action_preview">Previews</string>
+    <string name="pref_player_media_segments_action_commercial">Commercials</string>
+    <string name="media_segments_action_skip">Skip automatically</string>
+    <string name="media_segments_action_ask">Ask to skip</string>
+    <string name="media_segments_action_ignore">Do nothing</string>
     <string name="none">None</string>
     <string name="export_device_profile">Export device profile</string>
     <string name="export_device_profile_summary">A JSON snapshot of what this device tells the server it can play. Paste it into a bug report when something refuses to direct-play or transcodes when it shouldn\'t.</string>
