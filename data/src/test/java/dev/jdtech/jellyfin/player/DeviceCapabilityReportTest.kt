@@ -1,5 +1,6 @@
 package dev.jdtech.jellyfin.player
 
+import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -85,6 +86,36 @@ class DeviceCapabilityReportTest {
         ),
         downloadTranscodeDolbyVision = true,
     )
+
+    @Test
+    fun `device profiles carrying a UUID id serialize successfully`() {
+        // Regression: DeviceProfile.id is java.util.UUID, which kotlinx-serialization
+        // can't encode without a registered serializer. The Jellyfin SDK ships
+        // UUIDSerializer and the report's Json config wires it up contextually.
+        // Without that wiring this test throws "Serializer for class 'UUID' is not
+        // found" and the on-device export silently dies with "Could not build
+        // device profile". Pin both the UUID hex string in the output and the
+        // fact that encoding does not throw.
+        val deviceId = UUID.fromString("11111111-2222-3333-4444-555555555555")
+        val withId = sampleReport().copy(
+            deviceProfile = DeviceProfile(
+                name = "Findroid Device Profile",
+                id = deviceId,
+                directPlayProfiles = emptyList(),
+                transcodingProfiles = emptyList(),
+                containerProfiles = emptyList(),
+                codecProfiles = emptyList(),
+                subtitleProfiles = emptyList(),
+            ),
+        )
+
+        val json = DeviceCapabilityReportBuilder.toJson(withId)
+
+        assertTrue(
+            "UUID hex must appear in the JSON output",
+            json.contains(deviceId.toString()),
+        )
+    }
 
     @Test
     fun `json output is pretty-printed and exposes the top-level fields a bug report needs`() {

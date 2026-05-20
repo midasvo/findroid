@@ -22,13 +22,17 @@ import android.content.Context
 import android.os.Build
 import android.view.Display
 import android.view.WindowManager
+import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.modules.SerializersModule
+import kotlinx.serialization.modules.contextual
 import org.jellyfin.sdk.model.api.DeviceProfile
+import org.jellyfin.sdk.model.serializer.UUIDSerializer
 
 @Serializable
 data class DeviceCapabilityReport(
@@ -96,6 +100,15 @@ object DeviceCapabilityReportBuilder {
         prettyPrint = true
         encodeDefaults = true
         explicitNulls = false
+        // DeviceProfile.id is a java.util.UUID — kotlinx-serialization has no
+        // built-in encoder for that type. The Jellyfin SDK ships its own
+        // serializer, which we register here so the surrounding @Serializable
+        // SDK classes pick it up at runtime. Without this, encodeToString blows
+        // up the first time DeviceProfileBuilder.getDeviceProfile() hands us a
+        // profile with an actual UUID — which is every real device.
+        serializersModule = SerializersModule {
+            contextual(UUID::class, UUIDSerializer())
+        }
     }
 
     fun build(
