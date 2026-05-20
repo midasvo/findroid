@@ -116,7 +116,8 @@ class DeviceProfileBuilderTest {
 
         // PGS (BluRay sup), DVDSub (VobSub), DVB are all decoded natively by media3
         // and must be advertised as deliverable both embedded in the container and as
-        // sidecar files, so the server never bitmap-transcodes them to text.
+        // sidecar files, so the server never bitmap-transcodes them to text. Encode is
+        // the burn-in fallback when the server can't embed or sidecar.
         for (format in listOf("pgssub", "dvdsub", "dvbsub")) {
             assertTrue(
                 "$format must be deliverable embedded",
@@ -130,7 +131,58 @@ class DeviceProfileBuilderTest {
                     it.format == format && it.method == SubtitleDeliveryMethod.EXTERNAL
                 },
             )
+            assertTrue(
+                "$format must have a burn-in (Encode) fallback",
+                subtitleProfiles.any {
+                    it.format == format && it.method == SubtitleDeliveryMethod.ENCODE
+                },
+            )
         }
+    }
+
+    @Test
+    fun `subtitle profiles are pinned to the expected exact set`() {
+        // Locks down the exact (format, method) pairs the device profile emits.
+        // Catches typos ("pgsub"), accidental drops (srt), and accidental
+        // additions that a per-format presence test cannot see.
+        val probed = ProbedCodecs(
+            videoCodecProfiles = mapOf("h264" to setOf("high")),
+            audioCodecs = setOf("aac"),
+        )
+
+        val asPairs = DeviceProfileBuilder.buildDeviceProfile(probed)
+            .subtitleProfiles
+            .map { it.format to it.method }
+            .toSet()
+
+        val expected = setOf(
+            // Embed: text + image formats media3 can decode from the container.
+            "dvbsub" to SubtitleDeliveryMethod.EMBED,
+            "dvdsub" to SubtitleDeliveryMethod.EMBED,
+            "pgssub" to SubtitleDeliveryMethod.EMBED,
+            "srt" to SubtitleDeliveryMethod.EMBED,
+            "subrip" to SubtitleDeliveryMethod.EMBED,
+            "ttml" to SubtitleDeliveryMethod.EMBED,
+            "ass" to SubtitleDeliveryMethod.EMBED,
+            "ssa" to SubtitleDeliveryMethod.EMBED,
+            // External: sidecar formats (text + image where the server can stream them).
+            "dvbsub" to SubtitleDeliveryMethod.EXTERNAL,
+            "dvdsub" to SubtitleDeliveryMethod.EXTERNAL,
+            "pgssub" to SubtitleDeliveryMethod.EXTERNAL,
+            "srt" to SubtitleDeliveryMethod.EXTERNAL,
+            "subrip" to SubtitleDeliveryMethod.EXTERNAL,
+            "ttml" to SubtitleDeliveryMethod.EXTERNAL,
+            "vtt" to SubtitleDeliveryMethod.EXTERNAL,
+            "webvtt" to SubtitleDeliveryMethod.EXTERNAL,
+            "ass" to SubtitleDeliveryMethod.EXTERNAL,
+            "ssa" to SubtitleDeliveryMethod.EXTERNAL,
+            // Encode: burn-in fallback for image subtitles only.
+            "dvbsub" to SubtitleDeliveryMethod.ENCODE,
+            "dvdsub" to SubtitleDeliveryMethod.ENCODE,
+            "pgssub" to SubtitleDeliveryMethod.ENCODE,
+        )
+
+        assertEquals(expected, asPairs)
     }
 
     @Test
