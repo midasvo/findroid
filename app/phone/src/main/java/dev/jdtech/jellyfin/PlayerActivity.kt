@@ -44,6 +44,7 @@ import dev.jdtech.jellyfin.presentation.player.TrackSelectionDialogFragment
 import dev.jdtech.jellyfin.settings.domain.AppPreferences
 import dev.jdtech.jellyfin.utils.PlayerGestureHelper
 import dev.jdtech.jellyfin.utils.PreviewScrubListener
+import dev.jdtech.jellyfin.utils.applySubtitleStyle
 import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.delay
@@ -132,6 +133,10 @@ class PlayerActivity : BasePlayerActivity() {
         binding.playerView.findViewById<View>(R.id.back_button).setOnClickListener {
             finishPlayback()
         }
+
+        // Apply user-configured subtitle appearance to the embedded SubtitleView. The view is
+        // created by the inflated exo_player_view.xml and exposed via the @id/exo_subtitles id.
+        binding.playerView.subtitleView?.applySubtitleStyle(appPreferences)
 
         val videoNameTextView = binding.playerView.findViewById<TextView>(R.id.video_name)
 

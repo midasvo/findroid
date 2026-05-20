@@ -53,6 +53,7 @@ import dev.jdtech.jellyfin.presentation.film.SeasonScreen
 import dev.jdtech.jellyfin.presentation.film.ShowScreen
 import dev.jdtech.jellyfin.presentation.settings.AboutScreen
 import dev.jdtech.jellyfin.presentation.settings.SettingsScreen
+import dev.jdtech.jellyfin.presentation.settings.SubtitleStyleScreen
 import dev.jdtech.jellyfin.presentation.setup.addresses.ServerAddressesScreen
 import dev.jdtech.jellyfin.presentation.setup.addserver.AddServerScreen
 import dev.jdtech.jellyfin.presentation.setup.login.LoginScreen
@@ -105,6 +106,8 @@ data class SeasonRoute(val seasonId: String, val downloadsOnly: Boolean = false)
 @Serializable data class PersonRoute(val personId: String)
 
 @Serializable data class SettingsRoute(val indexes: IntArray)
+
+@Serializable data object SubtitleStyleRoute
 
 @Serializable data object AboutRoute
 
@@ -464,8 +467,14 @@ fun NavigationRoot(
                     navigateToServers = { navController.safeNavigate(ServersRoute) },
                     navigateToUsers = { navController.safeNavigate(UsersRoute) },
                     navigateToAbout = { navController.safeNavigate(AboutRoute) },
+                    navigateToSubtitleStyle = {
+                        navController.safeNavigate(SubtitleStyleRoute)
+                    },
                     navigateBack = { navController.safePopBackStack() },
                 )
+            }
+            composable<SubtitleStyleRoute> {
+                SubtitleStyleScreen(navigateBack = { navController.safePopBackStack() })
             }
             composable<AboutRoute> {
                 AboutScreen(navigateBack = { navController.safePopBackStack() })

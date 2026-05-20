@@ -66,6 +66,12 @@ fun SettingsSubScreen(
             is SettingsEvent.NavigateToUsers -> navigateToUsers()
             is SettingsEvent.NavigateToServers -> navigateToServers()
             is SettingsEvent.NavigateToAbout -> Unit
+            // TV has no custom subtitle-style screen; route through the standard sub-settings
+            // list, which renders the subtitle_style category's nestedPreferenceGroups. The
+            // subtitle_style category is nested under the player category, so the full path
+            // (current indexes + subtitle_style) is needed for SettingsViewModel.loadPreferences.
+            is SettingsEvent.NavigateToSubtitleStyle ->
+                navigateToSubSettings(indexes + SettingsR.string.subtitle_style)
             is SettingsEvent.UpdateTheme -> Unit
             is SettingsEvent.LaunchIntent -> {
                 try {

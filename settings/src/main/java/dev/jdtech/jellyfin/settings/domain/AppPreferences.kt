@@ -85,6 +85,31 @@ class AppPreferences @Inject constructor(val sharedPreferences: SharedPreference
     // Player - PiP
     val playerPipGesture = Preference("pref_player_picture_in_picture_gesture", false)
 
+    // Player - Subtitle styling
+    // Colors are stored as 8-digit ARGB hex strings (e.g. "#FFFFFFFF") so we can keep the
+    // existing primitive-only DataStore. Edge type / font family are short keys mapped to
+    // CaptionStyleCompat constants and Android Typefaces respectively by the player wiring.
+    val subtitleForegroundColor =
+        Preference<String?>(
+            "pref_subtitle_foreground_color",
+            Constants.SubtitleStyle.DEFAULT_FG_COLOR,
+        )
+    val subtitleBackgroundColor =
+        Preference<String?>(
+            "pref_subtitle_background_color",
+            Constants.SubtitleStyle.DEFAULT_BG_COLOR,
+        )
+    val subtitleEdgeColor =
+        Preference<String?>(
+            "pref_subtitle_edge_color",
+            Constants.SubtitleStyle.DEFAULT_EDGE_COLOR,
+        )
+    val subtitleEdgeType =
+        Preference<String?>("pref_subtitle_edge_type", Constants.SubtitleStyle.EDGE_OUTLINE)
+    val subtitleFontFamily =
+        Preference<String?>("pref_subtitle_font_family", Constants.SubtitleStyle.FONT_DEFAULT)
+    val subtitleFontScale = Preference("pref_subtitle_font_scale", 100)
+
     // Downloads
     val downloadOverMobileData = Preference("pref_downloads_mobile_data", false)
     val downloadWhenRoaming = Preference("pref_downloads_roaming", false)
