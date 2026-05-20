@@ -192,8 +192,23 @@ class DeviceProfileBuilder {
         private val FORCED_AUDIO_CODECS =
             setOf(*PCM_CODECS, "alac", "aac", "ac3", "eac3", "dts", "mlp", "truehd")
 
-        private val EXO_EMBEDDED_SUBTITLES = arrayOf("dvbsub", "pgssub", "srt", "subrip", "ttml", "ass", "ssa")
-        private val EXO_EXTERNAL_SUBTITLES = arrayOf("srt", "subrip", "ttml", "vtt", "webvtt", "ass", "ssa")
+        // Image-based subtitle formats decoded natively by media3: PGS (BluRay)
+        // and DVB (broadcast) parsers landed in earlier releases, VobSub joined
+        // in 1.6.0. Findroid runs media3 1.10.1 so all three are available.
+        // Advertised for embed, external, and encode delivery: embed/external
+        // let the server skip a bitmap-to-text transcode when it can; encode is
+        // the burn-in fallback so the user never gets an empty subtitle track.
+        private val EXO_EMBEDDED_SUBTITLES =
+            arrayOf("dvbsub", "dvdsub", "pgssub", "srt", "subrip", "ttml", "ass", "ssa")
+        private val EXO_EXTERNAL_SUBTITLES =
+            arrayOf("dvbsub", "dvdsub", "pgssub", "srt", "subrip", "ttml", "vtt", "webvtt", "ass", "ssa")
+
+        /**
+         * Image-based subtitle formats that the server should burn into the video
+         * stream when neither embed nor external sidecar delivery is possible.
+         * Matches what jellyfin-androidtv and jellyfin-android advertise.
+         */
+        private val EXO_BURNIN_IMAGE_SUBTITLES = arrayOf("dvbsub", "dvdsub", "pgssub")
 
         /**
          * Video range types that may be direct-played. Every Dolby Vision range
@@ -233,6 +248,11 @@ class DeviceProfileBuilder {
             }
             for (format in EXO_EXTERNAL_SUBTITLES) {
                 add(SubtitleProfile(format = format, method = SubtitleDeliveryMethod.EXTERNAL))
+            }
+            // Burn-in fallback for image subtitles: if the server can neither embed
+            // nor sidecar the track, it bakes the bitmaps into the video stream.
+            for (format in EXO_BURNIN_IMAGE_SUBTITLES) {
+                add(SubtitleProfile(format = format, method = SubtitleDeliveryMethod.ENCODE))
             }
         }
 

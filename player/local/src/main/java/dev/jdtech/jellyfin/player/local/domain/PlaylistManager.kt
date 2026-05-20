@@ -229,6 +229,12 @@ class PlaylistManager @Inject internal constructor(private val repository: Jelly
                             "subrip" -> MimeTypes.APPLICATION_SUBRIP
                             "webvtt" -> MimeTypes.APPLICATION_SUBRIP
                             "ass" -> MimeTypes.TEXT_SSA
+                            // Image-based subtitle sidecars. media3 ships native parsers
+                            // for these, so advertising the correct MIME lets the renderer
+                            // actually draw the bitmaps instead of dropping the track.
+                            "pgssub" -> MimeTypes.APPLICATION_PGS
+                            "dvdsub", "idx" -> MimeTypes.APPLICATION_VOBSUB
+                            "dvbsub" -> MimeTypes.APPLICATION_DVBSUBS
                             else -> MimeTypes.TEXT_UNKNOWN
                         },
                     )
