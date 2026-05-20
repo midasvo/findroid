@@ -22,6 +22,8 @@ import android.content.Context
 import android.os.Build
 import android.view.Display
 import android.view.WindowManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -136,6 +138,32 @@ object DeviceCapabilityReportBuilder {
     }
 
     fun toJson(report: DeviceCapabilityReport): String = json.encodeToString(report)
+
+    /**
+     * Suspend variant that assembles the report and serialises it on
+     * [Dispatchers.Default]. The probe + JSON encode walks a non-trivial SDK
+     * object graph (three full [DeviceProfile]s, codec maps, etc.) so we keep
+     * it off the UI thread even though the result is only ~tens of kilobytes
+     * in practice.
+     */
+    suspend fun buildJson(
+        context: Context,
+        deviceProfileBuilder: DeviceProfileBuilder,
+        findroidVersion: String,
+        findroidBuildType: String,
+        transcodeDolbyVision: Boolean,
+        clock: () -> Long = System::currentTimeMillis,
+    ): String = withContext(Dispatchers.Default) {
+        val report = build(
+            context = context,
+            deviceProfileBuilder = deviceProfileBuilder,
+            findroidVersion = findroidVersion,
+            findroidBuildType = findroidBuildType,
+            transcodeDolbyVision = transcodeDolbyVision,
+            clock = clock,
+        )
+        toJson(report)
+    }
 
     private fun currentDisplay(context: Context): DisplayInfo {
         // Context.display was added in API 30; on older devices fall back to the

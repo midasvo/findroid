@@ -1,5 +1,8 @@
 package dev.jdtech.jellyfin.player
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import org.jellyfin.sdk.model.api.DeviceProfile
 import org.jellyfin.sdk.model.api.DirectPlayProfile
 import org.jellyfin.sdk.model.api.DlnaProfileType
@@ -116,6 +119,24 @@ class DeviceCapabilityReportTest {
         // eyeball than numeric constants in a pasted blob.
         assertTrue(json.contains("\"DOLBY_VISION\""))
         assertTrue(json.contains("\"HDR10\""))
+    }
+
+    @Test
+    fun `toJson is dispatcher-agnostic and produces identical output off the main thread`() {
+        // Mirrors what DeviceCapabilityReportBuilder.buildJson does (suspend variant
+        // runs on Dispatchers.Default). We can't easily construct a full builder
+        // pipeline in a JVM unit test — that needs a Context — but we can prove
+        // that encoding the same report on a background dispatcher matches the
+        // direct toJson() output byte-for-byte. If anything ever introduced
+        // thread-local state into the serializer we'd see a mismatch here.
+        val report = sampleReport()
+        val expected = DeviceCapabilityReportBuilder.toJson(report)
+        val fromBackground = runBlocking {
+            withContext(Dispatchers.Default) {
+                DeviceCapabilityReportBuilder.toJson(report)
+            }
+        }
+        assertEquals(expected, fromBackground)
     }
 
     @Test

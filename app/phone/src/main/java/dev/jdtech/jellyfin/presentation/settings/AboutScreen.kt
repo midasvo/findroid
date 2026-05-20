@@ -50,6 +50,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewScreenSizes
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mikepenz.aboutlibraries.ui.compose.android.produceLibraries
 import com.mikepenz.aboutlibraries.ui.compose.m3.LibrariesContainer
 import dev.jdtech.jellyfin.BuildConfig
@@ -58,7 +59,12 @@ import dev.jdtech.jellyfin.core.R as CoreR
 import dev.jdtech.jellyfin.presentation.theme.FindroidTheme
 import dev.jdtech.jellyfin.presentation.theme.spacings
 import dev.jdtech.jellyfin.settings.R as SettingsR
+import dev.jdtech.jellyfin.utils.ObserveAsEvents
+import dev.jdtech.jellyfin.viewmodels.AboutAction
+import dev.jdtech.jellyfin.viewmodels.AboutEvent
+import dev.jdtech.jellyfin.viewmodels.AboutState
 import dev.jdtech.jellyfin.viewmodels.AboutViewModel
+import dev.jdtech.jellyfin.viewmodels.ExportTarget
 import timber.log.Timber
 
 @Composable
@@ -67,23 +73,50 @@ fun AboutScreen(
     viewModel: AboutViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
+    val state by viewModel.state.collectAsStateWithLifecycle()
 
-    AboutScreenLayout(
-        navigateBack = navigateBack,
-        onShareDeviceProfile = {
-            val json = safeBuildReport(context, viewModel)
-            if (json != null) shareJson(context, json)
-        },
-        onCopyDeviceProfile = {
-            val json = safeBuildReport(context, viewModel)
-            if (json != null) {
-                copyToClipboard(context, json)
+    ObserveAsEvents(viewModel.events) { event ->
+        when (event) {
+            is AboutEvent.ShareDeviceProfile -> shareJson(context, event.json)
+            is AboutEvent.CopyDeviceProfile -> {
+                copyToClipboard(context, event.json)
                 Toast.makeText(
                     context,
                     context.getString(SettingsR.string.export_device_profile_copied),
                     Toast.LENGTH_SHORT,
                 ).show()
             }
+            is AboutEvent.ExportFailed -> {
+                Timber.e(event.cause, "Failed to build device capability report")
+                Toast.makeText(
+                    context,
+                    context.getString(SettingsR.string.export_device_profile_failed),
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
+        }
+    }
+
+    AboutScreenLayout(
+        state = state,
+        navigateBack = navigateBack,
+        onShareDeviceProfile = {
+            viewModel.onAction(
+                AboutAction.OnExportDeviceProfile(
+                    findroidVersion = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                    findroidBuildType = BuildConfig.BUILD_TYPE,
+                    target = ExportTarget.Share,
+                ),
+            )
+        },
+        onCopyDeviceProfile = {
+            viewModel.onAction(
+                AboutAction.OnExportDeviceProfile(
+                    findroidVersion = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                    findroidBuildType = BuildConfig.BUILD_TYPE,
+                    target = ExportTarget.Clipboard,
+                ),
+            )
         },
     )
 }
@@ -91,6 +124,7 @@ fun AboutScreen(
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
 private fun AboutScreenLayout(
+    state: AboutState,
     navigateBack: () -> Unit,
     onShareDeviceProfile: () -> Unit,
     onCopyDeviceProfile: () -> Unit,
@@ -213,10 +247,16 @@ private fun AboutScreenLayout(
                                 horizontalArrangement =
                                     Arrangement.spacedBy(MaterialTheme.spacings.small)
                             ) {
-                                FilledTonalButton(onClick = onShareDeviceProfile) {
+                                FilledTonalButton(
+                                    onClick = onShareDeviceProfile,
+                                    enabled = !state.isExporting,
+                                ) {
                                     Text(stringResource(CoreR.string.share))
                                 }
-                                OutlinedButton(onClick = onCopyDeviceProfile) {
+                                OutlinedButton(
+                                    onClick = onCopyDeviceProfile,
+                                    enabled = !state.isExporting,
+                                ) {
                                     Text(
                                         stringResource(
                                             SettingsR.string.export_device_profile_copy,
@@ -230,23 +270,6 @@ private fun AboutScreenLayout(
                 }
             },
         )
-    }
-}
-
-private fun safeBuildReport(context: Context, viewModel: AboutViewModel): String? {
-    return try {
-        viewModel.buildCapabilityReportJson(
-            findroidVersion = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
-            findroidBuildType = BuildConfig.BUILD_TYPE,
-        )
-    } catch (e: Exception) {
-        Timber.e(e, "Failed to build device capability report")
-        Toast.makeText(
-            context,
-            context.getString(SettingsR.string.export_device_profile_failed),
-            Toast.LENGTH_SHORT,
-        ).show()
-        null
     }
 }
 
@@ -274,6 +297,7 @@ private fun copyToClipboard(context: Context, json: String) {
 private fun AboutScreenLayoutPreview() {
     FindroidTheme {
         AboutScreenLayout(
+            state = AboutState(),
             navigateBack = {},
             onShareDeviceProfile = {},
             onCopyDeviceProfile = {},
