@@ -108,6 +108,13 @@ class AppPreferences @Inject constructor(val sharedPreferences: SharedPreference
     // Player - trickplay
     val playerTrickplay = Preference("pref_player_trickplay", true)
 
+    // Developer options
+    // Experimental Compose-based trickplay path: lazy sprite-sheet loading with an LRU
+    // cache (existing path eagerly decodes every tile into a bitmap list up-front, which
+    // can use significant memory on long movies). Off by default — the existing path
+    // continues to drive trickplay for everyone else.
+    val developerEnableTrickplay = Preference("pref_developer_enable_trickplay", false)
+
     // Player - PiP
     val playerPipGesture = Preference("pref_player_picture_in_picture_gesture", false)
 
