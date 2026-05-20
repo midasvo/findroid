@@ -28,6 +28,7 @@ import dev.jdtech.jellyfin.player.core.domain.models.Trickplay
 import dev.jdtech.jellyfin.player.local.R
 import dev.jdtech.jellyfin.player.local.domain.PlaylistManager
 import dev.jdtech.jellyfin.player.local.domain.StillWatchingTracker
+import dev.jdtech.jellyfin.player.local.domain.TrickplayLoader
 import dev.jdtech.jellyfin.player.local.mpv.MPVPlayer
 import dev.jdtech.jellyfin.repository.JellyfinRepository
 import dev.jdtech.jellyfin.settings.domain.AppPreferences
@@ -320,6 +321,7 @@ constructor(
         val position = player.currentPosition
         val duration = player.duration
 
+        _uiState.value.currentTrickplay?.loader?.release()
         _uiState.update { it.copy(currentTrickplay = null) }
         playWhenReady = false
         playbackPosition = 0L
@@ -695,6 +697,29 @@ constructor(
     private suspend fun getTrickplay(item: PlayerItem) {
         val trickplayInfo = item.trickplayInfo ?: return
         Timber.d("Trickplay Resolution: ${trickplayInfo.width}")
+
+        // Developer-toggled lazy path: hand the consumer a loader instead of eagerly
+        // decoding the whole strip. The legacy path stays the default because it has
+        // had more bake time.
+        if (appPreferences.getValue(appPreferences.developerEnableTrickplay)) {
+            val loader =
+                TrickplayLoader(
+                    repository = repository,
+                    itemId = item.itemId,
+                    width = trickplayInfo.width,
+                    height = trickplayInfo.height,
+                    tileWidth = trickplayInfo.tileWidth,
+                    tileHeight = trickplayInfo.tileHeight,
+                    thumbnailCount = trickplayInfo.thumbnailCount,
+                    interval = trickplayInfo.interval,
+                )
+            _uiState.update {
+                it.copy(
+                    currentTrickplay = Trickplay(trickplayInfo.interval, loader = loader),
+                )
+            }
+            return
+        }
 
         withContext(Dispatchers.Default) {
             val maxIndex =

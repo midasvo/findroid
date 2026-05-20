@@ -34,6 +34,10 @@ import dev.jdtech.jellyfin.player.local.mpv.MPVPlayer
 import dev.jdtech.jellyfin.settings.domain.AppPreferences
 import kotlin.math.abs
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import timber.log.Timber
 
 class PlayerGestureHelper(
@@ -72,6 +76,9 @@ class PlayerGestureHelper(
     var currentTrickplay: Trickplay? = null
     private val trickplayRoundedCorners = RoundedCornersTransformation(10f)
     private var currentTrickplayBitmap: Bitmap? = null
+    private val trickplayScope = MainScope()
+    private var trickplayLoaderJob: Job? = null
+    private var lastTrickplayTileKey: Int = Int.MIN_VALUE
 
     private var currentNumberOfPointers: Int = 0
 
@@ -549,9 +556,45 @@ class PlayerGestureHelper(
         return false
     }
 
+    /**
+     * Cancels the trickplay coroutine scope so pending tile fetches don't outlive the host
+     * activity. Call from [PlayerActivity.onDestroy]; safe to call multiple times.
+     */
+    fun dispose() {
+        trickplayLoaderJob?.cancel()
+        trickplayScope.cancel()
+    }
+
     fun updateTrickplayImage(position: Long) {
         try {
             val trickplay = currentTrickplay ?: return
+
+            val loader = trickplay.loader
+            if (loader != null) {
+                val tileKey = (position / trickplay.interval).toInt()
+                if (tileKey == lastTrickplayTileKey) return
+                lastTrickplayTileKey = tileKey
+                trickplayLoaderJob?.cancel()
+                trickplayLoaderJob = trickplayScope.launch {
+                    val bitmap =
+                        try {
+                            loader.tileAt(position)
+                        } catch (e: Exception) {
+                            Timber.d(e, "Trickplay tile load failed (gesture)")
+                            null
+                        } ?: return@launch
+                    if (currentTrickplayBitmap != bitmap) {
+                        activity.binding.progressScrubberTrickplay.load(bitmap) {
+                            coroutineContext(Dispatchers.Main.immediate)
+                            crossfade(false)
+                            transformations(trickplayRoundedCorners)
+                        }
+                        currentTrickplayBitmap = bitmap
+                    }
+                }
+                return
+            }
+
             val bitmap = trickplay.images[position.div(trickplay.interval).toInt()]
 
             if (currentTrickplayBitmap != bitmap) {

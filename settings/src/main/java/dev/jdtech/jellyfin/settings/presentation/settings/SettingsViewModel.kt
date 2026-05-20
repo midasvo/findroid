@@ -924,6 +924,44 @@ class SettingsViewModel @Inject constructor(
                 preferences =
                     listOf(
                         PreferenceCategory(
+                            nameStringResource = R.string.settings_category_developer,
+                            iconDrawableId = R.drawable.ic_code,
+                            onClick = {
+                                viewModelScope.launch {
+                                    eventsChannel.send(
+                                        SettingsEvent.NavigateToSettings(
+                                            intArrayOf(it.nameStringResource)
+                                        )
+                                    )
+                                }
+                            },
+                            nestedPreferenceGroups =
+                                listOf(
+                                    PreferenceGroup(
+                                        nameStringResource =
+                                            R.string.settings_category_developer_experimental,
+                                        preferences =
+                                            listOf(
+                                                PreferenceSwitch(
+                                                    nameStringResource =
+                                                        R.string.pref_developer_enable_trickplay,
+                                                    descriptionStringRes =
+                                                        R.string
+                                                            .pref_developer_enable_trickplay_summary,
+                                                    supportedDeviceTypes = listOf(DeviceType.PHONE),
+                                                    backendPreference =
+                                                        appPreferences.developerEnableTrickplay,
+                                                )
+                                            ),
+                                    )
+                                ),
+                        )
+                    )
+            ),
+            PreferenceGroup(
+                preferences =
+                    listOf(
+                        PreferenceCategory(
                             nameStringResource = R.string.about,
                             iconDrawableId = R.drawable.ic_info,
                             onClick = {
