@@ -268,7 +268,11 @@ class PlaylistManager @Inject internal constructor(private val repository: Jelly
 
     private fun List<FindroidChapter>.toPlayerChapters(): List<PlayerChapter> {
         return this.map { chapter ->
-            PlayerChapter(startPosition = chapter.startPosition, name = chapter.name)
+            PlayerChapter(
+                startPosition = chapter.startPosition,
+                name = chapter.name,
+                imageTag = chapter.imageTag,
+            )
         }
     }
 }

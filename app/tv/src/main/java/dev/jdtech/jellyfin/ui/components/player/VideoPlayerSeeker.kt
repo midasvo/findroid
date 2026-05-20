@@ -34,6 +34,7 @@ fun VideoPlayerSeeker(
     onSeek: (Float) -> Unit,
     contentProgress: Duration,
     contentDuration: Duration,
+    chapterMarkers: List<Float> = emptyList(),
 ) {
     val contentProgressString =
         contentProgress.toComponents { h, m, s, _ ->
@@ -91,6 +92,7 @@ fun VideoPlayerSeeker(
                 progress = (contentProgress / contentDuration).toFloat(),
                 onSeek = onSeek,
                 state = state,
+                chapterMarkers = chapterMarkers,
             )
         }
     }

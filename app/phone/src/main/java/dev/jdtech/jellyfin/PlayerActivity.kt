@@ -37,6 +37,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import dev.jdtech.jellyfin.databinding.ActivityPlayerBinding
 import dev.jdtech.jellyfin.player.local.presentation.PlayerEvents
 import dev.jdtech.jellyfin.player.local.presentation.PlayerViewModel
+import dev.jdtech.jellyfin.presentation.player.ChapterListDialogFragment
 import dev.jdtech.jellyfin.presentation.player.SpeedSelectionDialogFragment
 import dev.jdtech.jellyfin.presentation.player.TrackSelectionDialogFragment
 import dev.jdtech.jellyfin.settings.domain.AppPreferences
@@ -138,6 +139,8 @@ class PlayerActivity : BasePlayerActivity() {
         val pipButton = binding.playerView.findViewById<ImageButton>(R.id.btn_pip)
         val lockButton = binding.playerView.findViewById<ImageButton>(R.id.btn_lockview)
         val unlockButton = binding.playerView.findViewById<ImageButton>(R.id.btn_unlock)
+        val chaptersButton = binding.playerView.findViewById<ImageButton>(R.id.btn_chapters)
+        val chaptersSpace = binding.playerView.findViewById<Space>(R.id.space_chapters)
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -185,7 +188,11 @@ class PlayerActivity : BasePlayerActivity() {
                             // Chapters
                             val playerControlView =
                                 findViewById<PlayerControlView>(R.id.exo_controller)
-                            if (currentChapters.isNotEmpty()) {
+                            val hasChapters = currentChapters.isNotEmpty()
+                            val showChapterMarkers =
+                                hasChapters &&
+                                    appPreferences.getValue(appPreferences.playerChapterMarkers)
+                            if (showChapterMarkers) {
                                 val numOfChapters = currentChapters.size
                                 playerControlView.setExtraAdGroupMarkers(
                                     LongArray(numOfChapters) { index ->
@@ -196,6 +203,9 @@ class PlayerActivity : BasePlayerActivity() {
                             } else {
                                 playerControlView.setExtraAdGroupMarkers(null, null)
                             }
+                            // Hide the spacer too so the controls bar does not end in dead space.
+                            chaptersButton.isVisible = hasChapters
+                            chaptersSpace.isVisible = hasChapters
 
                             // File Loaded
                             if (fileLoaded) {
@@ -312,6 +322,11 @@ class PlayerActivity : BasePlayerActivity() {
         speedButton.setOnClickListener {
             SpeedSelectionDialogFragment(viewModel)
                 .show(supportFragmentManager, "speedselectiondialog")
+        }
+
+        chaptersButton.setOnClickListener {
+            ChapterListDialogFragment(viewModel)
+                .show(supportFragmentManager, "chapterlistdialog")
         }
 
         pipButton.setOnClickListener { pictureInPicture() }
